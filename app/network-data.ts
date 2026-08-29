@@ -1,439 +1,206 @@
-export type Severity = "critical" | "high" | "medium";
+export type RepairKind = "physical" | "configuration" | "process";
 
-export type Observation = {
+export type FixOption = {
   id: string;
-  text: string;
-  context: string;
-  isFinding: boolean;
-  severity?: Severity;
-  layer: number;
-  explanation?: string;
-  remediation?: string;
+  kind: RepairKind;
+  label: string;
+  detail: string;
+  correct: boolean;
 };
 
-export type Device = {
+export type Bug = {
+  id: string;
+  deviceId: string;
+  severity: "critical" | "high" | "medium";
+  title: string;
+  summary: string;
+  evidence: string;
+  risk: string;
+  reportFinding: string;
+  reportHint: string;
+  fixes: FixOption[];
+};
+
+export type NetworkNode = {
   id: string;
   name: string;
   role: string;
-  zone: string;
+  zone: "outside" | "perimeter" | "dmz" | "internal";
   ip: string;
-  platform: string;
-  owner: string;
-  icon: "globe" | "shield" | "server" | "router" | "database" | "drive" | "monitor" | "laptop" | "wifi";
+  icon: "globe" | "shield" | "server" | "switch" | "database" | "computer" | "laptop" | "wifi" | "terminal";
   position: { x: number; y: number };
-  layers: number[];
-  services: string[];
-  connections: { device: string; purpose: string }[];
-  observations: Observation[];
 };
 
-export const osiLayers = [
-  { number: 7, name: "Application", examples: "HTTP · DNS · SMB", color: "#a78bfa" },
-  { number: 6, name: "Presentation", examples: "TLS · encoding", color: "#c084fc" },
-  { number: 5, name: "Session", examples: "sessions · RPC", color: "#e879f9" },
-  { number: 4, name: "Transport", examples: "TCP · UDP · ports", color: "#fb923c" },
-  { number: 3, name: "Network", examples: "IP · routing", color: "#facc15" },
-  { number: 2, name: "Data link", examples: "MAC · VLAN · Wi-Fi", color: "#34d399" },
-  { number: 1, name: "Physical", examples: "cable · radio", color: "#22d3ee" },
+export const tcpIpLayers = [
+  { name: "Application", examples: "HTTP · DNS · SMB", note: "What the service says" },
+  { name: "Transport", examples: "TCP · UDP · ports", note: "How sessions travel" },
+  { name: "Internet", examples: "IP · routing · ACLs", note: "Where packets go" },
+  { name: "Link", examples: "Ethernet · VLAN · Wi-Fi", note: "How devices connect" },
 ];
 
-export const devices: Device[] = [
-  {
-    id: "internet",
-    name: "Internet",
-    role: "Untrusted network",
-    zone: "External",
-    ip: "0.0.0.0/0",
-    platform: "Public networks",
-    owner: "External",
-    icon: "globe",
-    position: { x: 7, y: 50 },
-    layers: [1, 2, 3],
-    services: ["Untrusted traffic", "Public DNS"],
-    connections: [{ device: "EDGE-FW", purpose: "WAN uplink" }],
-    observations: [
-      {
-        id: "internet-boundary",
-        text: "All inbound traffic crosses the managed perimeter",
-        context: "Network boundary inventory",
-        isFinding: false,
-        layer: 3,
-      },
-    ],
-  },
-  {
-    id: "edge-fw",
-    name: "EDGE-FW",
-    role: "Perimeter firewall",
-    zone: "Perimeter",
-    ip: "203.0.113.10",
-    platform: "NGFW 9.1",
-    owner: "Network team",
-    icon: "shield",
-    position: { x: 24, y: 50 },
-    layers: [3, 4],
-    services: ["TCP/22", "TCP/80", "IPsec VPN"],
-    connections: [
-      { device: "Internet", purpose: "WAN" },
-      { device: "WEB-01", purpose: "Published service" },
-      { device: "CORE-SW", purpose: "Internal transit" },
-    ],
-    observations: [
-      {
-        id: "fw-any-ssh",
-        text: "Rule 07: ANY → WEB-01 TCP/22 ALLOW",
-        context: "Active rule · 4,218 matches in the last 24 hours",
-        isFinding: true,
-        severity: "critical",
-        layer: 4,
-        explanation: "SSH is exposed to every internet source, creating a direct brute-force and credential-stuffing path to the web server.",
-        remediation: "Restrict SSH to a managed jump host or VPN range and require key-based authentication.",
-      },
-      {
-        id: "fw-default-deny",
-        text: "Default inbound policy: DENY",
-        context: "Applied after explicit allow rules",
-        isFinding: false,
-        layer: 4,
-      },
-      {
-        id: "fw-admin-bound",
-        text: "Administrative UI bound to 10.20.0.1 only",
-        context: "Not reachable on the WAN interface",
-        isFinding: false,
-        layer: 3,
-      },
-    ],
-  },
-  {
-    id: "web-01",
-    name: "WEB-01",
-    role: "Customer portal",
-    zone: "DMZ",
-    ip: "10.10.10.21",
-    platform: "Ubuntu 18.04 · nginx 1.14.0",
-    owner: "Application team",
-    icon: "server",
-    position: { x: 43, y: 25 },
-    layers: [4, 5, 6, 7],
-    services: ["TCP/22 SSH", "TCP/80 HTTP"],
-    connections: [
-      { device: "EDGE-FW", purpose: "Inbound web and SSH" },
-      { device: "DB-01", purpose: "Application queries" },
-    ],
-    observations: [
-      {
-        id: "web-http",
-        text: "HTTP/80 active; HTTPS listener absent",
-        context: "Login and customer forms use this listener",
-        isFinding: true,
-        severity: "high",
-        layer: 6,
-        explanation: "Credentials and session data can traverse the network without transport encryption and may be intercepted or modified.",
-        remediation: "Enable modern TLS, redirect HTTP to HTTPS, and deploy HSTS after validation.",
-      },
-      {
-        id: "web-version",
-        text: "Server header returns nginx/1.14.0",
-        context: "Observed in every HTTP response",
-        isFinding: true,
-        severity: "medium",
-        layer: 7,
-        explanation: "The service discloses a legacy version, helping attackers target known weaknesses and confirming an unsupported baseline.",
-        remediation: "Upgrade to a supported release and suppress unnecessary version banners.",
-      },
-      {
-        id: "web-shell",
-        text: "Service account web_svc has /usr/sbin/nologin",
-        context: "Account record reviewed locally",
-        isFinding: false,
-        layer: 7,
-      },
-    ],
-  },
-  {
-    id: "core-sw",
-    name: "CORE-SW",
-    role: "Core switch",
-    zone: "Internal",
-    ip: "10.20.0.2",
-    platform: "48-port managed switch",
-    owner: "Network team",
-    icon: "router",
-    position: { x: 43, y: 68 },
-    layers: [1, 2, 3],
-    services: ["802.1Q trunks", "SSH management"],
-    connections: [
-      { device: "EDGE-FW", purpose: "Perimeter transit" },
-      { device: "DB-01", purpose: "Server VLAN" },
-      { device: "FS-01", purpose: "Server VLAN" },
-      { device: "PC-07", purpose: "User VLAN" },
-      { device: "ADMIN-01", purpose: "User VLAN" },
-      { device: "AP-01", purpose: "802.1Q trunk" },
-    ],
-    observations: [
-      {
-        id: "switch-open-ports",
-        text: "Gi0/18–24: access VLAN 20; port security disabled",
-        context: "Unused ports remain physically active",
-        isFinding: true,
-        severity: "medium",
-        layer: 2,
-        explanation: "An unauthorised device can be connected to an unused office port and immediately join the employee VLAN.",
-        remediation: "Disable unused ports and apply 802.1X or port security to active access ports.",
-      },
-      {
-        id: "switch-bpdu",
-        text: "BPDU Guard enabled on access ports",
-        context: "Violation automatically err-disables the port",
-        isFinding: false,
-        layer: 2,
-      },
-      {
-        id: "switch-ssh",
-        text: "Management protocol: SSHv2 only",
-        context: "Telnet service disabled",
-        isFinding: false,
-        layer: 7,
-      },
-    ],
-  },
-  {
-    id: "db-01",
-    name: "DB-01",
-    role: "Finance database",
-    zone: "Server VLAN",
-    ip: "10.30.0.12",
-    platform: "Rocky Linux · MySQL 5.7",
-    owner: "Database team",
-    icon: "database",
-    position: { x: 65, y: 22 },
-    layers: [4, 5, 6, 7],
-    services: ["TCP/3306 MySQL", "TCP/22 SSH"],
-    connections: [
-      { device: "WEB-01", purpose: "Application queries" },
-      { device: "CORE-SW", purpose: "Server VLAN" },
-    ],
-    observations: [
-      {
-        id: "db-wide-source",
-        text: "TCP/3306 accepts 10.10.10.0/24",
-        context: "The entire DMZ subnet is permitted",
-        isFinding: true,
-        severity: "high",
-        layer: 4,
-        explanation: "Any compromised DMZ host can reach the database instead of only the authorised application host.",
-        remediation: "Allow the minimum required source host and enforce an authenticated application path.",
-      },
-      {
-        id: "db-remote-root",
-        text: "Database account root@'%' permits password login",
-        context: "Host wildcard found in mysql.user",
-        isFinding: true,
-        severity: "critical",
-        layer: 7,
-        explanation: "The database superuser can authenticate remotely from any permitted network, magnifying credential compromise.",
-        remediation: "Remove remote root access and use named, least-privileged service and admin accounts.",
-      },
-      {
-        id: "db-encryption",
-        text: "Storage encryption: AES-256 enabled",
-        context: "Key stored in the enterprise key manager",
-        isFinding: false,
-        layer: 6,
-      },
-    ],
-  },
-  {
-    id: "fs-01",
-    name: "FS-01",
-    role: "Shared file server",
-    zone: "Server VLAN",
-    ip: "10.30.0.18",
-    platform: "Windows Server 2016",
-    owner: "Workplace team",
-    icon: "drive",
-    position: { x: 85, y: 22 },
-    layers: [4, 5, 6, 7],
-    services: ["TCP/445 SMB", "TCP/5985 WinRM"],
-    connections: [{ device: "CORE-SW", purpose: "Server VLAN" }],
-    observations: [
-      {
-        id: "fs-smb1",
-        text: "SMBv1 enabled for legacy scanner compatibility",
-        context: "Server feature installed and active",
-        isFinding: true,
-        severity: "high",
-        layer: 5,
-        explanation: "SMBv1 is obsolete and exposes the server to well-known exploitation and lateral-movement techniques.",
-        remediation: "Remove SMBv1 and isolate the legacy transfer workflow.",
-      },
-      {
-        id: "fs-anonymous",
-        text: "\\\\FS-01\\public permits anonymous read",
-        context: "Guest access succeeds from the employee VLAN",
-        isFinding: true,
-        severity: "medium",
-        layer: 7,
-        explanation: "Unauthenticated users can collect shared files that may contain internal or sensitive information.",
-        remediation: "Require authentication and review share and NTFS permissions against business need.",
-      },
-      {
-        id: "fs-backup",
-        text: "Nightly backup completed successfully at 02:00",
-        context: "Restore test passed this quarter",
-        isFinding: false,
-        layer: 7,
-      },
-    ],
-  },
-  {
-    id: "pc-07",
-    name: "PC-07",
-    role: "Employee workstation",
-    zone: "User VLAN",
-    ip: "10.20.0.57",
-    platform: "Windows 11 23H2",
-    owner: "Finance user",
-    icon: "monitor",
-    position: { x: 65, y: 68 },
-    layers: [1, 2, 3, 4, 5, 6, 7],
-    services: ["DHCP client", "SMB client", "HTTPS"],
-    connections: [
-      { device: "CORE-SW", purpose: "Employee access" },
-      { device: "FS-01", purpose: "Shared files" },
-    ],
-    observations: [
-      {
-        id: "pc-patching",
-        text: "Last successful security update: 141 days ago",
-        context: "Update agent reports error 0x8024401c",
-        isFinding: true,
-        severity: "high",
-        layer: 7,
-        explanation: "The workstation is missing months of security fixes and is more likely to be compromised through malicious content.",
-        remediation: "Repair update management, isolate if necessary, and restore the approved patch baseline.",
-      },
-      {
-        id: "pc-macros",
-        text: "Office macros from the internet: blocked",
-        context: "Policy applied successfully",
-        isFinding: false,
-        layer: 7,
-      },
-      {
-        id: "pc-edr",
-        text: "EDR sensor healthy; tamper protection on",
-        context: "Last check-in two minutes ago",
-        isFinding: false,
-        layer: 7,
-      },
-    ],
-  },
-  {
-    id: "admin-01",
-    name: "ADMIN-01",
-    role: "Administrator laptop",
-    zone: "User VLAN",
-    ip: "10.20.0.9",
-    platform: "Windows 11 Enterprise",
-    owner: "IT administrator",
-    icon: "laptop",
-    position: { x: 85, y: 68 },
-    layers: [1, 2, 3, 4, 5, 6, 7],
-    services: ["TCP/3389 RDP", "PowerShell Remoting"],
-    connections: [
-      { device: "CORE-SW", purpose: "Administration" },
-      { device: "DB-01", purpose: "Privileged support" },
-      { device: "FS-01", purpose: "Privileged support" },
-    ],
-    observations: [
-      {
-        id: "admin-rdp",
-        text: "RDP/3389 reachable from User VLAN; NLA disabled",
-        context: "Host firewall rule applies to 10.20.0.0/24",
-        isFinding: true,
-        severity: "high",
-        layer: 5,
-        explanation: "A compromised employee endpoint can reach a privileged laptop's RDP service without Network Level Authentication.",
-        remediation: "Separate privileged administration, restrict RDP sources, and enable NLA with MFA-backed access.",
-      },
-      {
-        id: "admin-laps",
-        text: "Local administrator password rotated every 24 hours",
-        context: "Managed by Windows LAPS",
-        isFinding: false,
-        layer: 7,
-      },
-      {
-        id: "admin-mfa",
-        text: "MFA enforced for VPN sign-in",
-        context: "Conditional access policy enabled",
-        isFinding: false,
-        layer: 7,
-      },
-    ],
-  },
-  {
-    id: "ap-01",
-    name: "AP-01",
-    role: "Wireless access point",
-    zone: "User VLAN",
-    ip: "10.20.0.31",
-    platform: "Dual-band Wi-Fi 5 AP",
-    owner: "Network team",
-    icon: "wifi",
-    position: { x: 75, y: 88 },
-    layers: [1, 2, 3],
-    services: ["CorpWiFi", "GuestNet", "802.1Q uplink"],
-    connections: [{ device: "CORE-SW", purpose: "Tagged uplink" }],
-    observations: [
-      {
-        id: "ap-wps",
-        text: "WPS PIN mode enabled on CorpWiFi",
-        context: "Configured for rapid printer onboarding",
-        isFinding: true,
-        severity: "high",
-        layer: 2,
-        explanation: "WPS PIN authentication weakens the wireless boundary and may allow recovery of network access credentials.",
-        remediation: "Disable WPS and onboard managed devices through the approved enterprise process.",
-      },
-      {
-        id: "ap-flat-guest",
-        text: "GuestNet mapped to VLAN 20, shared with employees",
-        context: "Client isolation on; network isolation absent",
-        isFinding: true,
-        severity: "critical",
-        layer: 2,
-        explanation: "Guest devices land on the employee network, bypassing the intended trust boundary and exposing internal hosts.",
-        remediation: "Place guests in a dedicated VLAN with internet-only firewall policy and no internal routes.",
-      },
-      {
-        id: "ap-crypto",
-        text: "Wireless encryption: WPA2-AES",
-        context: "TKIP and open authentication disabled",
-        isFinding: false,
-        layer: 2,
-      },
-    ],
-  },
+export const securityChain = [
+  { name: "Asset", text: "Finance data" },
+  { name: "Threat", text: "External attacker" },
+  { name: "Vulnerability", text: "Weak control" },
+  { name: "Risk", text: "Loss or misuse" },
+  { name: "Control", text: "Repair choice" },
+  { name: "Residual risk", text: "Retest result" },
+];
+
+export const nodes: NetworkNode[] = [
+  { id: "pentest-box", name: "PENTEST-BOX", role: "Authorised test console", zone: "outside", ip: "198.51.100.44", icon: "terminal", position: { x: 8, y: 78 } },
+  { id: "internet", name: "INTERNET", role: "Untrusted network", zone: "outside", ip: "0.0.0.0/0", icon: "globe", position: { x: 8, y: 34 } },
+  { id: "edge-fw", name: "EDGE-FW", role: "Perimeter firewall", zone: "perimeter", ip: "203.0.113.10", icon: "shield", position: { x: 26, y: 51 } },
+  { id: "web-01", name: "WEB-01", role: "Customer portal", zone: "dmz", ip: "10.10.10.21", icon: "server", position: { x: 46, y: 25 } },
+  { id: "core-sw", name: "CORE-SW", role: "Managed switch", zone: "internal", ip: "10.20.0.2", icon: "switch", position: { x: 46, y: 69 } },
+  { id: "db-01", name: "DB-01", role: "Finance database", zone: "internal", ip: "10.30.0.12", icon: "database", position: { x: 68, y: 22 } },
+  { id: "fs-01", name: "FS-01", role: "Shared file server", zone: "internal", ip: "10.30.0.18", icon: "server", position: { x: 88, y: 22 } },
+  { id: "pc-07", name: "PC-07", role: "Employee workstation", zone: "internal", ip: "10.20.0.57", icon: "computer", position: { x: 68, y: 68 } },
+  { id: "admin-01", name: "ADMIN-01", role: "Administrator laptop", zone: "internal", ip: "10.20.0.9", icon: "laptop", position: { x: 88, y: 68 } },
+  { id: "ap-01", name: "AP-01", role: "Wireless access point", zone: "internal", ip: "10.20.0.31", icon: "wifi", position: { x: 78, y: 88 } },
 ];
 
 export const edges = [
+  { from: "pentest-box", to: "internet", label: "authorised probe" },
   { from: "internet", to: "edge-fw", label: "WAN" },
   { from: "edge-fw", to: "web-01", label: "22 · 80" },
   { from: "edge-fw", to: "core-sw", label: "transit" },
   { from: "web-01", to: "db-01", label: "3306" },
-  { from: "core-sw", to: "db-01", label: "server" },
+  { from: "core-sw", to: "db-01", label: "server VLAN" },
   { from: "core-sw", to: "fs-01", label: "445" },
   { from: "core-sw", to: "pc-07", label: "access" },
   { from: "core-sw", to: "admin-01", label: "access" },
-  { from: "core-sw", to: "ap-01", label: "trunk" },
+  { from: "core-sw", to: "ap-01", label: "802.1Q" },
 ];
 
-export const findingIds = devices.flatMap((device) =>
-  device.observations.filter((observation) => observation.isFinding).map((observation) => observation.id),
-);
-
-export const correctAttackPath = ["internet", "edge-fw", "web-01", "db-01"];
+export const bugs: Bug[] = [
+  {
+    id: "fw-ssh",
+    deviceId: "edge-fw",
+    severity: "critical",
+    title: "Internet-facing SSH rule",
+    summary: "A perimeter rule exposes the web server's administration port to every source on the internet.",
+    evidence: "Rule 07 · ANY → WEB-01 · TCP/22 · ALLOW",
+    risk: "Brute-force or credential-stuffing traffic can reach a DMZ administration service.",
+    reportFinding: "External SSH exposure remains reachable from the test console.",
+    reportHint: "The perimeter rule still needs a narrower source range.",
+    fixes: [
+      { id: "fw-vpn", kind: "configuration", label: "Restrict SSH to the admin VPN", detail: "Allow TCP/22 only from the managed jump host and VPN address pool.", correct: true },
+      { id: "fw-cable", kind: "physical", label: "Move the firewall to a new rack", detail: "A different rack position does not change the traffic policy.", correct: false },
+      { id: "fw-name", kind: "configuration", label: "Rename the rule to 'secure-ssh'", detail: "A clearer label improves documentation but does not reduce exposure.", correct: false },
+    ],
+  },
+  {
+    id: "web-tls",
+    deviceId: "web-01",
+    severity: "high",
+    title: "Customer portal without TLS",
+    summary: "The login form is served over HTTP, so credentials and sessions are not protected in transit.",
+    evidence: "TCP/80 active · HTTPS listener absent · redirect disabled",
+    risk: "A network observer can read or modify customer traffic between the browser and the portal.",
+    reportFinding: "The portal still accepts unencrypted customer traffic.",
+    reportHint: "The service needs a real encrypted listener and redirect.",
+    fixes: [
+      { id: "web-cert", kind: "configuration", label: "Enable TLS and redirect HTTP", detail: "Install a certificate, enable HTTPS, redirect port 80, and add HSTS after validation.", correct: true },
+      { id: "web-room", kind: "physical", label: "Move the server into a locked room", detail: "Physical access control cannot encrypt a customer's network session.", correct: false },
+      { id: "web-nic", kind: "physical", label: "Install a faster network card", detail: "More throughput does not provide confidentiality or integrity.", correct: false },
+    ],
+  },
+  {
+    id: "db-acl",
+    deviceId: "db-01",
+    severity: "critical",
+    title: "Database trusts the whole DMZ",
+    summary: "The finance database accepts connections from every host in the DMZ instead of the application server only.",
+    evidence: "TCP/3306 · source 10.10.10.0/24 · ACCEPT",
+    risk: "One compromised DMZ host can probe the finance database directly.",
+    reportFinding: "The database remains reachable from more hosts than the application needs.",
+    reportHint: "Replace the subnet-wide allow rule with a host-specific trust boundary.",
+    fixes: [
+      { id: "db-host-acl", kind: "configuration", label: "Allow DB traffic from WEB-01 only", detail: "Replace the /24 source with 10.10.10.21 and keep the required application port.", correct: true },
+      { id: "db-switch", kind: "physical", label: "Put DB-01 on a second switch", detail: "A second switch alone does not create a routed security boundary.", correct: false },
+      { id: "db-port", kind: "configuration", label: "Move MySQL to TCP/3307", detail: "Changing a port can obscure a service but does not enforce least privilege.", correct: false },
+    ],
+  },
+  {
+    id: "wifi-guest",
+    deviceId: "ap-01",
+    severity: "critical",
+    title: "Guest Wi-Fi shares the employee VLAN",
+    summary: "Visitors receive addresses on VLAN 20, the same segment used by employee endpoints.",
+    evidence: "GuestNet → VLAN 20 · client isolation ON · network isolation OFF",
+    risk: "An untrusted guest device can discover and attack internal hosts.",
+    reportFinding: "A guest client can still reach the employee network.",
+    reportHint: "The guest SSID needs a separate segment and an internet-only policy.",
+    fixes: [
+      { id: "wifi-vlan", kind: "configuration", label: "Create an isolated guest VLAN", detail: "Map GuestNet to a dedicated VLAN and block routes to internal address space.", correct: true },
+      { id: "wifi-move", kind: "physical", label: "Move AP-01 to the ceiling", detail: "Changing the access point's position does not change its VLAN mapping.", correct: false },
+      { id: "wifi-pass", kind: "configuration", label: "Use a longer guest password", detail: "A strong password cannot compensate for a missing network boundary.", correct: false },
+    ],
+  },
+  {
+    id: "switch-ports",
+    deviceId: "core-sw",
+    severity: "medium",
+    title: "Unused wall ports are live",
+    summary: "Seven access ports are active in the employee VLAN and have no port-security policy.",
+    evidence: "Gi0/18–24 · access VLAN 20 · port-security DISABLED",
+    risk: "Someone with physical access can plug in a rogue device and join the employee segment.",
+    reportFinding: "An untrusted device can still attach through an unused wall port.",
+    reportHint: "The physical access path itself must be closed or controlled.",
+    fixes: [
+      { id: "switch-shut", kind: "physical", label: "Disable unused ports and lock patch points", detail: "Administratively shut unused ports and secure the accessible patch-panel outlets.", correct: true },
+      { id: "switch-more", kind: "physical", label: "Add another access switch", detail: "More ports increase capacity but do not reduce the open-port exposure.", correct: false },
+      { id: "switch-label", kind: "configuration", label: "Rename VLAN 20 to 'trusted'", detail: "A label has no effect on who can connect to the VLAN.", correct: false },
+    ],
+  },
+  {
+    id: "fileshare",
+    deviceId: "fs-01",
+    severity: "high",
+    title: "Legacy SMB and anonymous share",
+    summary: "The file server keeps SMBv1 enabled and exposes the public share to unauthenticated users.",
+    evidence: "SMBv1 ENABLED · \\\\FS-01\\public · anonymous READ",
+    risk: "An attacker can use an obsolete protocol and collect internal files without an account.",
+    reportFinding: "Legacy SMB and anonymous file access are still available.",
+    reportHint: "Remove the obsolete protocol and require an identity for the share.",
+    fixes: [
+      { id: "fileshare-hardening", kind: "configuration", label: "Disable SMBv1 and require authentication", detail: "Remove SMBv1, remove guest access, and review share and NTFS permissions.", correct: true },
+      { id: "fileshare-room", kind: "physical", label: "Move the server to a locked room", detail: "Physical protection does not stop remote SMB abuse.", correct: false },
+      { id: "fileshare-disk", kind: "physical", label: "Install a larger disk", detail: "More storage does not alter protocol or access permissions.", correct: false },
+    ],
+  },
+  {
+    id: "admin-rdp",
+    deviceId: "admin-01",
+    severity: "high",
+    title: "Privileged laptop accepts weak RDP",
+    summary: "The administrator laptop is reachable from the user VLAN and does not require Network Level Authentication.",
+    evidence: "TCP/3389 reachable from 10.20.0.0/24 · NLA DISABLED",
+    risk: "A compromised employee endpoint can attack a privileged workstation laterally.",
+    reportFinding: "The privileged laptop is still exposed to lateral RDP attempts.",
+    reportHint: "Limit the source and require pre-authentication for privileged access.",
+    fixes: [
+      { id: "admin-nla", kind: "configuration", label: "Restrict RDP and enable NLA", detail: "Permit RDP from the admin jump host only and enforce Network Level Authentication.", correct: true },
+      { id: "admin-bag", kind: "physical", label: "Use a privacy screen", detail: "A privacy screen protects shoulder-surfing, not remote access.", correct: false },
+      { id: "admin-rack", kind: "physical", label: "Store the laptop in the server rack", detail: "Changing its storage location does not change the network service.", correct: false },
+    ],
+  },
+  {
+    id: "pc-patch",
+    deviceId: "pc-07",
+    severity: "high",
+    title: "Workstation missed the patch baseline",
+    summary: "The employee workstation has not completed a security update for 141 days.",
+    evidence: "Last security update 141 days ago · update error 0x8024401c",
+    risk: "A phishing or malicious-content event has a larger chance of becoming endpoint compromise.",
+    reportFinding: "The endpoint remains outside the approved patch baseline.",
+    reportHint: "Repair the update path and contain the stale endpoint while it catches up.",
+    fixes: [
+      { id: "pc-patch-channel", kind: "process", label: "Repair patching and isolate until current", detail: "Fix the update channel, quarantine the stale endpoint briefly, then verify the baseline.", correct: true },
+      { id: "pc-monitor", kind: "physical", label: "Replace the monitor", detail: "A new display does not install missing security updates.", correct: false },
+      { id: "pc-wallpaper", kind: "configuration", label: "Change the desktop wallpaper", detail: "Cosmetic configuration has no patching effect.", correct: false },
+    ],
+  },
+];
 

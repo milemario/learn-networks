@@ -1,516 +1,344 @@
 "use client";
 
-import { useMemo, useState, type CSSProperties } from "react";
-import type { LucideIcon } from "lucide-react";
+import { useMemo, useState, type ComponentType } from "react";
 import {
   AlertTriangle,
+  ArrowDown,
   ArrowRight,
   Check,
   ChevronRight,
+  CircleHelp,
   CircleDot,
-  Crosshair,
-  Database,
-  Eye,
-  Flag,
-  Globe2,
-  HardDrive,
-  Laptop,
-  Layers3,
-  Lightbulb,
-  Monitor,
-  Network,
+  FileText,
+  LockKeyhole,
+  Play,
   RotateCcw,
-  Route,
-  Router,
-  Search,
-  Server,
-  Shield,
+  ScanLine,
+  Settings2,
   ShieldCheck,
-  Wifi,
+  Sparkles,
+  TestTube2,
+  Wrench,
   X,
 } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  correctAttackPath,
-  devices,
+  bugs,
   edges,
-  findingIds,
-  osiLayers,
-  type Severity,
+  nodes,
+  securityChain,
+  tcpIpLayers,
+  type Bug,
+  type FixOption,
+  type NetworkNode,
+  type RepairKind,
 } from "./network-data";
+import {
+  PixelComputer,
+  PixelDatabase,
+  PixelGlobe,
+  PixelLaptop,
+  PixelServer,
+  PixelShield,
+  PixelSwitch,
+  PixelTerminal,
+  PixelWifi,
+  type PixelIconProps,
+} from "./pixel-icons";
 
-const icons: Record<(typeof devices)[number]["icon"], LucideIcon> = {
-  globe: Globe2,
-  shield: Shield,
-  server: Server,
-  router: Router,
-  database: Database,
-  drive: HardDrive,
-  monitor: Monitor,
-  laptop: Laptop,
-  wifi: Wifi,
+type Filter = "all" | "open" | "prepared";
+
+type TestReport = {
+  clean: boolean;
+  unresolved: string[];
+  run: number;
 };
 
-const observationIndex = new Map(
-  devices.flatMap((device) =>
-    device.observations.map((observation) => [observation.id, { observation, device }]),
-  ),
-);
+const deviceIcons: Record<NetworkNode["icon"], ComponentType<PixelIconProps>> = {
+  globe: PixelGlobe,
+  shield: PixelShield,
+  server: PixelServer,
+  switch: PixelSwitch,
+  database: PixelDatabase,
+  computer: PixelComputer,
+  laptop: PixelLaptop,
+  wifi: PixelWifi,
+  terminal: PixelTerminal,
+};
 
-function severityLabel(severity?: Severity) {
-  if (!severity) return "";
+const repairLabels: Record<RepairKind, string> = {
+  physical: "Physical",
+  configuration: "Setting",
+  process: "Process",
+};
+
+const repairIcons: Record<RepairKind, typeof Settings2> = {
+  physical: Wrench,
+  configuration: Settings2,
+  process: FileText,
+};
+
+const nodeMap = new Map(nodes.map((node) => [node.id, node]));
+
+function severityLabel(severity: Bug["severity"]) {
   return severity.charAt(0).toUpperCase() + severity.slice(1);
 }
 
+function getBugForNode(nodeId: string) {
+  return bugs.find((bug) => bug.deviceId === nodeId);
+}
+
 export default function Home() {
-  const [activeDeviceId, setActiveDeviceId] = useState<string | null>(null);
-  const [selectedLayer, setSelectedLayer] = useState<number | null>(null);
-  const [selectedObservations, setSelectedObservations] = useState<Set<string>>(new Set());
-  const [assessment, setAssessment] = useState<{
-    correct: number;
-    incorrect: number;
-    missed: number;
-    score: number;
-  } | null>(null);
-  const [attempts, setAttempts] = useState(0);
-  const [reveal, setReveal] = useState(false);
-  const [pathMode, setPathMode] = useState(false);
-  const [attackPath, setAttackPath] = useState<string[]>([]);
-  const [pathResult, setPathResult] = useState<"correct" | "incorrect" | null>(null);
+  const [selectedBugId, setSelectedBugId] = useState<string | null>(null);
+  const [filter, setFilter] = useState<Filter>("all");
+  const [selectedFixes, setSelectedFixes] = useState<Record<string, string>>({});
+  const [report, setReport] = useState<TestReport | null>(null);
+  const [testing, setTesting] = useState(false);
+  const [testRuns, setTestRuns] = useState(0);
 
-  const activeDevice = devices.find((device) => device.id === activeDeviceId) ?? null;
-  const progress = Math.round((selectedObservations.size / findingIds.length) * 100);
+  const selectedBug = bugs.find((bug) => bug.id === selectedBugId) ?? null;
+  const preparedCount = bugs.filter((bug) => selectedFixes[bug.id]).length;
+  const resolvedCount = bugs.filter((bug) => bug.fixes.find((fix) => fix.id === selectedFixes[bug.id])?.correct).length;
+  const progress = Math.round((resolvedCount / bugs.length) * 100);
 
-  const selectedItems = useMemo(
-    () =>
-      Array.from(selectedObservations)
-        .map((id) => observationIndex.get(id))
-        .filter((item): item is NonNullable<typeof item> => Boolean(item)),
-    [selectedObservations],
-  );
+  const filteredBugs = useMemo(() => bugs.filter((bug) => {
+    if (filter === "open") return !selectedFixes[bug.id];
+    if (filter === "prepared") return Boolean(selectedFixes[bug.id]);
+    return true;
+  }), [filter, selectedFixes]);
 
-  function toggleObservation(id: string) {
-    setSelectedObservations((current) => {
-      const next = new Set(current);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-    setAssessment(null);
+  function chooseFix(bugId: string, fix: FixOption) {
+    setSelectedFixes((current) => ({ ...current, [bugId]: fix.id }));
+    setReport(null);
   }
 
-  function submitAssessment() {
-    const correct = findingIds.filter((id) => selectedObservations.has(id)).length;
-    const incorrect = Array.from(selectedObservations).filter(
-      (id) => !observationIndex.get(id)?.observation.isFinding,
-    ).length;
-    const missed = findingIds.length - correct;
-    const score = Math.max(0, Math.round((correct / findingIds.length) * 100 - incorrect * 5));
-    setAssessment({ correct, incorrect, missed, score });
-    setAttempts((value) => value + 1);
+  function testSystem() {
+    if (testing) return;
+    setTesting(true);
+    setReport(null);
+    const nextRun = testRuns + 1;
+    window.setTimeout(() => {
+      const unresolved = bugs
+        .filter((bug) => !bug.fixes.find((fix) => fix.id === selectedFixes[bug.id])?.correct)
+        .map((bug) => bug.id);
+      setReport({ clean: unresolved.length === 0, unresolved, run: nextRun });
+      setTestRuns(nextRun);
+      setTesting(false);
+    }, 900);
   }
 
-  function handleDeviceClick(deviceId: string) {
-    if (!pathMode) {
-      setActiveDeviceId(deviceId);
-      return;
-    }
-    setPathResult(null);
-    setAttackPath((current) => {
-      if (current.includes(deviceId) || current.length >= correctAttackPath.length) return current;
-      return [...current, deviceId];
-    });
-  }
-
-  function checkAttackPath() {
-    const correct =
-      attackPath.length === correctAttackPath.length &&
-      attackPath.every((deviceId, index) => deviceId === correctAttackPath[index]);
-    setPathResult(correct ? "correct" : "incorrect");
-  }
-
-  function resetExercise() {
-    setActiveDeviceId(null);
-    setSelectedLayer(null);
-    setSelectedObservations(new Set());
-    setAssessment(null);
-    setAttempts(0);
-    setReveal(false);
-    setPathMode(false);
-    setAttackPath([]);
-    setPathResult(null);
+  function resetLab() {
+    setSelectedBugId(null);
+    setSelectedFixes({});
+    setReport(null);
+    setTesting(false);
+    setTestRuns(0);
+    setFilter("all");
   }
 
   return (
-    <main className="range-shell">
-      <header className="topbar">
+    <main className="lab-shell">
+      <header className="lab-header">
         <div className="brand-lockup">
-          <div className="brand-mark" aria-hidden="true"><Network /></div>
+          <div className="pixel-brand-mark"><PixelSwitch /></div>
           <div>
-            <p className="eyebrow">LEARN / NETWORKS</p>
-            <h1>Northstar security review</h1>
+            <p className="brand-eyebrow">LEARN / NETWORKS</p>
+            <h1>Network repair lab</h1>
           </div>
         </div>
-        <div className="topbar-actions">
-          <Badge className="scenario-badge" variant="outline">Scenario 01 · Intermediate</Badge>
-          <Button className="reset-button" variant="ghost" size="sm" onClick={resetExercise}>
-            <RotateCcw /> Reset
-          </Button>
+        <div className="header-center">
+          <span className="case-label">CASE 01</span>
+          <span className="case-title">Northstar Logistics · pre-launch review</span>
+        </div>
+        <div className="header-actions">
+          <span className="authorized-chip"><LockKeyhole /> authorised simulation</span>
+          <Button className="light-button" variant="ghost" size="sm" onClick={resetLab}><RotateCcw /> Reset</Button>
         </div>
       </header>
 
-      <section className="mission-strip" aria-labelledby="mission-title">
-        <div className="mission-number">01</div>
-        <div className="mission-copy">
-          <p className="eyebrow" id="mission-title">YOUR MISSION</p>
-          <p>
-            Audit the network before launch. Inspect every device, flag weak configurations,
-            then trace the most likely route from the internet to the finance database.
-          </p>
+      <section className="intro-strip">
+        <div className="intro-copy">
+          <div className="intro-kicker"><Sparkles /> DEFENDER VIEW</div>
+          <h2>Repair the network. Then let the pentester try again.</h2>
+          <p>Find the weak control, choose one of three repairs, and keep testing until the mock report comes back clean.</p>
         </div>
-        <div className="mission-progress">
-          <div className="progress-heading">
-            <span>Evidence flagged</span>
-            <strong>{selectedObservations.size} / {findingIds.length}</strong>
+        <div className="intro-action">
+          <div className="control-progress">
+            <div><span>Controls ready</span><strong>{resolvedCount} / {bugs.length}</strong></div>
+            <Progress value={progress} aria-label={`${resolvedCount} of ${bugs.length} controls ready`} />
           </div>
-          <Progress value={progress} aria-label={`${selectedObservations.size} of ${findingIds.length} findings flagged`} />
+          <Button className="test-button" onClick={testSystem} disabled={testing}>
+            {testing ? <ScanLine className="spin-icon" /> : <TestTube2 />}
+            {testing ? "Pentester running…" : "Test the system"}
+          </Button>
         </div>
       </section>
 
-      <div className="workspace-grid">
-        <aside className="panel osi-panel" aria-labelledby="osi-heading">
-          <div className="panel-heading">
-            <div>
-              <p className="eyebrow">REFERENCE MODEL</p>
-              <h2 id="osi-heading">OSI layers</h2>
+      <section className="model-strip" aria-labelledby="model-heading">
+        <div className="model-label">
+          <p className="section-eyebrow">THE MAP WE USE</p>
+          <h2 id="model-heading">Security chain</h2>
+          <p>TCP/IP explains where a control lives. The chain explains why it matters.</p>
+        </div>
+        <div className="chain-row">
+          {securityChain.map((item, index) => (
+            <div className="chain-item" key={item.name}>
+              <span className="chain-number">0{index + 1}</span>
+              <div><strong>{item.name}</strong><small>{item.text}</small></div>
+              {index < securityChain.length - 1 && <ArrowRight className="chain-arrow" />}
             </div>
-            <Layers3 aria-hidden="true" />
+          ))}
+        </div>
+        <div className="model-note"><CircleHelp /><div><span>TCP/IP model</span><small>{tcpIpLayers.map((layer) => layer.name).join(" · ")}</small></div><ArrowDown /><span>security reasoning</span></div>
+      </section>
+
+      <div className="lab-grid">
+        <aside className="issue-rail" aria-labelledby="issues-heading">
+          <div className="rail-heading">
+            <div><p className="section-eyebrow">ISSUE QUEUE</p><h2 id="issues-heading">What needs attention?</h2></div>
+            <span className="issue-count">{bugs.length}</span>
           </div>
-          <p className="panel-hint">Select a layer to focus the architecture.</p>
-          <div className="osi-stack">
-            {osiLayers.map((layer) => {
-              const isSelected = selectedLayer === layer.number;
+          <div className="filter-row" role="group" aria-label="Filter issues">
+            {(["all", "open", "prepared"] as Filter[]).map((item) => (
+              <button key={item} className={filter === item ? "is-active" : ""} onClick={() => setFilter(item)}>
+                {item === "all" ? "All" : item === "open" ? "Open" : "Prepared"}
+              </button>
+            ))}
+          </div>
+          <div className="issue-list">
+            {filteredBugs.map((bug, index) => {
+              const isSelected = selectedBugId === bug.id;
+              const selectedFix = selectedFixes[bug.id];
+              const fixed = Boolean(bug.fixes.find((fix) => fix.id === selectedFix)?.correct);
               return (
-                <button
-                  className={`osi-layer ${isSelected ? "is-selected" : ""}`}
-                  key={layer.number}
-                  onClick={() => setSelectedLayer(isSelected ? null : layer.number)}
-                  style={{ "--layer-color": layer.color } as CSSProperties}
-                  aria-pressed={isSelected}
-                >
-                  <span className="layer-number">L{layer.number}</span>
-                  <span className="layer-copy">
-                    <strong>{layer.name}</strong>
-                    <small>{layer.examples}</small>
-                  </span>
-                  <ChevronRight />
+                <button className={`issue-row ${isSelected ? "is-selected" : ""} ${fixed ? "is-fixed" : ""}`} key={bug.id} onClick={() => setSelectedBugId(bug.id)}>
+                  <span className={`severity-dot ${bug.severity}`} />
+                  <span className="issue-row-copy"><span className="issue-code">ISSUE 0{index + 1}</span><strong>{bug.title}</strong><small>{nodeMap.get(bug.deviceId)?.name} · {severityLabel(bug.severity)}</small></span>
+                  <span className="issue-status">{fixed ? <Check /> : selectedFix ? <Wrench /> : <ChevronRight />}</span>
                 </button>
               );
             })}
           </div>
-          <div className="osi-tip">
-            <Lightbulb />
-            <p><strong>Think in layers.</strong> A secure application can still be reached through a weak network rule.</p>
+          <div className="rail-legend">
+            <span><i className="legend-dot critical" /> Critical</span>
+            <span><i className="legend-dot high" /> High</span>
+            <span><i className="legend-dot medium" /> Medium</span>
           </div>
+          <div className="rail-tip"><CircleHelp /><p>One issue can have a physical, setting, or process fix. Choose the control that actually closes the path.</p></div>
         </aside>
 
-        <section className="panel topology-panel" aria-labelledby="topology-heading">
-          <div className="panel-heading topology-heading">
-            <div>
-              <p className="eyebrow">LIVE ARCHITECTURE</p>
-              <h2 id="topology-heading">Network topology</h2>
-            </div>
-            <div className="map-legend" aria-label="Topology legend">
-              <span><i className="legend-line" /> Connection</span>
-              <span><i className="legend-flag" /> Flagged evidence</span>
-            </div>
+        <section className="network-panel" aria-labelledby="network-heading">
+          <div className="network-panel-heading">
+            <div><p className="section-eyebrow">ARCHITECTURE MAP</p><h2 id="network-heading">Northstar network</h2></div>
+            <div className="network-heading-meta"><span><i className="map-dot open" /> issue open</span><span><i className="map-dot fixed" /> repair prepared</span></div>
           </div>
-
-          {pathMode && (
-            <div className="path-mode-banner">
-              <Crosshair />
-              <span>Select {correctAttackPath.length} devices in order, beginning outside the network.</span>
-              <button onClick={() => { setPathMode(false); setAttackPath([]); setPathResult(null); }} aria-label="Exit path mode"><X /></button>
-            </div>
-          )}
-
-          <div className="topology-scroll">
-            <div className="topology-canvas">
-              <div className="zone zone-external"><span>UNTRUSTED</span></div>
-              <div className="zone zone-perimeter"><span>PERIMETER</span></div>
-              <div className="zone zone-dmz"><span>DMZ · 10.10.10.0/24</span></div>
-              <div className="zone zone-internal"><span>INTERNAL NETWORK</span></div>
-
-              <svg className="topology-lines" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+          <div className="network-scroll">
+            <div className="network-board">
+              <div className="board-zone zone-outside"><span>OUTSIDE</span><small>authorised source</small></div>
+              <div className="board-zone zone-edge"><span>EDGE</span><small>trust boundary</small></div>
+              <div className="board-zone zone-dmz"><span>DMZ</span><small>published service</small></div>
+              <div className="board-zone zone-inside"><span>INSIDE</span><small>trusted segments</small></div>
+              <svg className="network-wires" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
                 {edges.map((edge) => {
-                  const from = devices.find((device) => device.id === edge.from)!;
-                  const to = devices.find((device) => device.id === edge.to)!;
-                  const isActive = activeDeviceId === from.id || activeDeviceId === to.id ||
-                    (pathMode && attackPath.includes(from.id) && attackPath.includes(to.id));
-                  return (
-                    <line
-                      key={`${edge.from}-${edge.to}`}
-                      x1={from.position.x}
-                      y1={from.position.y}
-                      x2={to.position.x}
-                      y2={to.position.y}
-                      className={isActive ? "is-active" : ""}
-                      vectorEffect="non-scaling-stroke"
-                    />
-                  );
+                  const from = nodeMap.get(edge.from)!;
+                  const to = nodeMap.get(edge.to)!;
+                  const active = selectedBug && (selectedBug.deviceId === edge.from || selectedBug.deviceId === edge.to);
+                  return <line key={`${edge.from}-${edge.to}`} x1={from.position.x} y1={from.position.y} x2={to.position.x} y2={to.position.y} className={active ? "is-active" : ""} vectorEffect="non-scaling-stroke" />;
                 })}
               </svg>
-
               {edges.map((edge) => {
-                const from = devices.find((device) => device.id === edge.from)!;
-                const to = devices.find((device) => device.id === edge.to)!;
-                return (
-                  <span
-                    className="flow-label"
-                    key={`label-${edge.from}-${edge.to}`}
-                    style={{
-                      left: `${(from.position.x + to.position.x) / 2}%`,
-                      top: `${(from.position.y + to.position.y) / 2}%`,
-                    }}
-                  >
-                    {edge.label}
-                  </span>
-                );
+                const from = nodeMap.get(edge.from)!;
+                const to = nodeMap.get(edge.to)!;
+                return <span key={`edge-label-${edge.from}-${edge.to}`} className="wire-label" style={{ left: `${(from.position.x + to.position.x) / 2}%`, top: `${(from.position.y + to.position.y) / 2}%` }}>{edge.label}</span>;
               })}
-
-              {devices.map((device) => {
-                const Icon = icons[device.icon];
-                const flaggedOnDevice = device.observations.filter((observation) => selectedObservations.has(observation.id)).length;
-                const pathStep = attackPath.indexOf(device.id);
-                const isDimmed = selectedLayer !== null && !device.layers.includes(selectedLayer);
+              {nodes.map((node) => {
+                const Icon = deviceIcons[node.icon];
+                const bug = getBugForNode(node.id);
+                const selection = bug ? selectedFixes[bug.id] : undefined;
+                const fixed = Boolean(bug?.fixes.find((fix) => fix.id === selection)?.correct);
+                const isSelected = bug?.id === selectedBugId;
                 return (
-                  <button
-                    className={`device-node zone-${device.zone.toLowerCase().replace(" ", "-")} ${
-                      activeDeviceId === device.id ? "is-active" : ""
-                    } ${isDimmed ? "is-dimmed" : ""} ${pathStep >= 0 ? "is-path" : ""}`}
-                    key={device.id}
-                    style={{ left: `${device.position.x}%`, top: `${device.position.y}%` }}
-                    onClick={() => handleDeviceClick(device.id)}
-                    aria-label={`${pathMode ? "Add to attack path" : "Inspect"} ${device.name}, ${device.role}`}
-                  >
-                    <span className="device-icon"><Icon /></span>
-                    <span className="device-copy"><strong>{device.name}</strong><small>{device.role}</small></span>
-                    {flaggedOnDevice > 0 && !pathMode && <span className="node-flag">{flaggedOnDevice}</span>}
-                    {pathStep >= 0 && <span className="path-step">{pathStep + 1}</span>}
+                  <button key={node.id} className={`network-node ${node.zone} ${isSelected ? "is-selected" : ""} ${fixed ? "is-fixed" : ""} ${selection && !fixed ? "is-prepared" : ""}`} style={{ left: `${node.position.x}%`, top: `${node.position.y}%` }} onClick={() => bug ? setSelectedBugId(bug.id) : undefined} aria-label={bug ? `Inspect ${bug.title} on ${node.name}` : node.name}>
+                    <span className="node-sprite"><Icon /></span>
+                    <span className="node-copy"><strong>{node.name}</strong><small>{node.role}</small></span>
+                    {bug && <span className={`node-status ${fixed ? "fixed" : ""}`}>{fixed ? <Check /> : <AlertTriangle />}</span>}
                   </button>
                 );
               })}
             </div>
           </div>
-
-          <div className="topology-footer">
-            <span><CircleDot /> Click a device to inspect its services and evidence.</span>
-            {selectedLayer && (
-              <button className="focus-chip" onClick={() => setSelectedLayer(null)}>Showing Layer {selectedLayer} <X /></button>
-            )}
-          </div>
+          <div className="network-caption"><span><CircleDot /> Choose an issue from the queue or click a flagged device.</span><span className="sprite-credit">Pixel device glyphs · MIT / pixelarticons</span></div>
         </section>
 
-        <aside className="panel notebook-panel" aria-labelledby="notebook-heading">
-          <div className="panel-heading">
-            <div>
-              <p className="eyebrow">ANALYST WORKSPACE</p>
-              <h2 id="notebook-heading">Field notebook</h2>
-            </div>
-            <Flag aria-hidden="true" />
-          </div>
-
-          <section className="notebook-section">
-            <div className="section-kicker"><Search /> Suspected findings</div>
-            {selectedItems.length === 0 ? (
-              <div className="empty-notebook">
-                <Eye />
-                <p>No evidence flagged yet.</p>
-                <span>Open a device and select anything you believe creates risk.</span>
-              </div>
-            ) : (
-              <div className="finding-list">
-                {selectedItems.map(({ observation, device }, index) => (
-                  <button key={observation.id} onClick={() => setActiveDeviceId(device.id)}>
-                    <span>{String(index + 1).padStart(2, "0")}</span>
-                    <span><strong>{device.name}</strong><small>{observation.text}</small></span>
-                    <ChevronRight />
-                  </button>
-                ))}
-              </div>
-            )}
-          </section>
-
-          {assessment && (
-            <section className={`assessment-result ${assessment.missed === 0 && assessment.incorrect === 0 ? "is-perfect" : ""}`}>
-              <div className="score-ring"><strong>{assessment.score}</strong><span>/100</span></div>
-              <div>
-                <strong>{assessment.missed === 0 && assessment.incorrect === 0 ? "Assessment complete" : "Keep investigating"}</strong>
-                <p>{assessment.correct} verified · {assessment.incorrect} false positive · {assessment.missed} still hidden</p>
-              </div>
-            </section>
+        <aside className="repair-panel" aria-labelledby="repair-heading">
+          {selectedBug ? (
+            <RepairInspector bug={selectedBug} selectedFix={selectedFixes[selectedBug.id]} onChoose={(fix) => chooseFix(selectedBug.id, fix)} onClose={() => setSelectedBugId(null)} report={report} />
+          ) : (
+            <EmptyInspector preparedCount={preparedCount} onStart={() => setSelectedBugId(bugs[0].id)} />
           )}
-
-          <div className="assessment-actions">
-            <Button onClick={submitAssessment} disabled={selectedObservations.size === 0}><ShieldCheck /> Submit assessment</Button>
-            {assessment && (
-              <Button variant="outline" onClick={() => setReveal((current) => !current)}><Eye /> {reveal ? "Hide debrief" : "Reveal debrief"}</Button>
-            )}
-          </div>
-
-          <section className="attack-card">
-            <div className="attack-card-heading">
-              <div className="attack-icon"><Route /></div>
-              <div><p className="eyebrow">ATTACK VECTOR</p><h3>Trace a path to DB-01</h3></div>
-            </div>
-            <p>Choose the four devices an external attacker would cross in the most direct route.</p>
-
-            <div className="path-slots" aria-label="Selected attack path">
-              {Array.from({ length: correctAttackPath.length }).map((_, index) => {
-                const device = devices.find((item) => item.id === attackPath[index]);
-                return (
-                  <div className={device ? "is-filled" : ""} key={index}>
-                    <span>{index + 1}</span><strong>{device?.name ?? "Select"}</strong>
-                    {index < correctAttackPath.length - 1 && <ArrowRight />}
-                  </div>
-                );
-              })}
-            </div>
-
-            {pathResult && (
-              <div className={`path-feedback ${pathResult}`}>
-                {pathResult === "correct" ? <Check /> : <AlertTriangle />}
-                <span>{pathResult === "correct" ? "Valid path. Now connect it to the evidence you found." : "That route breaks the observed traffic flow. Try again."}</span>
-              </div>
-            )}
-
-            {!pathMode ? (
-              <Button variant="outline" onClick={() => { setPathMode(true); setAttackPath([]); setPathResult(null); }}><Crosshair /> Build attack path</Button>
-            ) : (
-              <div className="path-actions">
-                <Button onClick={checkAttackPath} disabled={attackPath.length < correctAttackPath.length}>Check path</Button>
-                <Button variant="ghost" onClick={() => { setAttackPath([]); setPathResult(null); }}>Clear</Button>
-              </div>
-            )}
-          </section>
-
-          <div className="attempt-counter">Assessment attempts: {attempts}</div>
         </aside>
       </div>
 
-      <footer className="status-footer">
-        <span><ShieldCheck /> Training environment · no live systems</span>
-        <span>Northstar Logistics · Architecture snapshot 2026-08-18</span>
-      </footer>
+      <section className={`pentest-report ${report ? "has-report" : ""}`} aria-live="polite" aria-labelledby="report-heading">
+        <div className="report-heading">
+          <div className="report-icon"><ScanLine /></div>
+          <div><p className="section-eyebrow">PENTESTER OUTPUT</p><h2 id="report-heading">Mock penetration test report</h2></div>
+          {report && <span className={`report-status ${report.clean ? "clean" : "open"}`}>{report.clean ? <><Check /> CLEAN RUN {report.run}</> : <><AlertTriangle /> {report.unresolved.length} FINDING{report.unresolved.length === 1 ? "" : "S"} OPEN</>}</span>}
+        </div>
+        {!report ? (
+          <div className="report-empty"><div><strong>Ready when you are.</strong><p>The authorised PENTEST-BOX will check the eight controls in this case and show what an attacker can still reach.</p></div><Button variant="outline" onClick={testSystem} disabled={testing}><Play /> Run mock test</Button></div>
+        ) : report.clean ? (
+          <div className="report-clean"><Check /><div><strong>No exploitable path found in this test run.</strong><p>External access is constrained, trust boundaries hold, and the endpoint baseline is back in place. Residual risk still needs normal monitoring.</p></div><span className="clean-stamp">8 / 8 checks passed</span></div>
+        ) : (
+          <div className="report-findings"><div className="report-summary"><AlertTriangle /><div><strong>The network is still testable.</strong><p>Pick a repair for each open finding, then run the test again. A prepared option is not necessarily an effective control.</p></div></div><div className="report-list">{report.unresolved.map((bugId) => { const bug = bugs.find((item) => item.id === bugId)!; return <div className="report-row" key={bug.id}><span className={`severity-pill ${bug.severity}`}>{severityLabel(bug.severity)}</span><div><strong>{bug.reportFinding}</strong><small>{bug.reportHint}</small></div><button onClick={() => setSelectedBugId(bug.id)}>Repair <ChevronRight /></button></div>; })}</div></div>
+        )}
+      </section>
 
-      <Sheet open={Boolean(activeDevice)} onOpenChange={(open) => !open && setActiveDeviceId(null)}>
-        <SheetContent className="device-sheet sm:max-w-2xl">
-          {activeDevice && (
-            <>
-              <SheetHeader className="device-sheet-header">
-                <div className="sheet-title-row">
-                  <div className="sheet-device-icon">{(() => { const Icon = icons[activeDevice.icon]; return <Icon />; })()}</div>
-                  <div>
-                    <Badge variant="outline" className="zone-badge">{activeDevice.zone}</Badge>
-                    <SheetTitle>{activeDevice.name}</SheetTitle>
-                    <SheetDescription>{activeDevice.role} · {activeDevice.ip}</SheetDescription>
-                  </div>
-                </div>
-              </SheetHeader>
-
-              <Tabs defaultValue="evidence" className="device-tabs">
-                <TabsList variant="line" className="device-tabs-list">
-                  <TabsTrigger value="evidence">Evidence</TabsTrigger>
-                  <TabsTrigger value="snapshot">Snapshot</TabsTrigger>
-                  <TabsTrigger value="connections">Connections</TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="evidence" className="tab-scroll">
-                  <div className="evidence-intro">
-                    <div><p className="eyebrow">OBSERVED CONFIGURATION</p><h3>What deserves investigation?</h3></div>
-                    <span>{activeDevice.observations.filter((item) => selectedObservations.has(item.id)).length} flagged</span>
-                  </div>
-                  <p className="evidence-guidance">Select suspicious evidence. Normal or protective controls are deliberately mixed in.</p>
-
-                  <div className="evidence-list">
-                    {activeDevice.observations.map((observation) => {
-                      const isSelected = selectedObservations.has(observation.id);
-                      const answerClass = reveal ? (observation.isFinding ? "is-finding" : "is-safe") : "";
-                      return (
-                        <div className={`evidence-item ${isSelected ? "is-selected" : ""} ${answerClass}`} key={observation.id}>
-                          <button onClick={() => toggleObservation(observation.id)} aria-pressed={isSelected}>
-                            <span className="evidence-check">{isSelected ? <Flag /> : null}</span>
-                            <span className="evidence-copy"><code>{observation.text}</code><small>{observation.context}</small></span>
-                            <span className="layer-tag">L{observation.layer}</span>
-                          </button>
-                          {reveal && (
-                            <div className="debrief-copy">
-                              <div className="answer-label">
-                                {observation.isFinding ? <AlertTriangle /> : <Check />}
-                                {observation.isFinding ? `${severityLabel(observation.severity)} finding` : "Protective or neutral control"}
-                              </div>
-                              {observation.isFinding && (
-                                <><p>{observation.explanation}</p><p><strong>Mitigation:</strong> {observation.remediation}</p></>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="snapshot" className="tab-scroll">
-                  <div className="snapshot-grid">
-                    <div><span>Address</span><strong>{activeDevice.ip}</strong></div>
-                    <div><span>Zone</span><strong>{activeDevice.zone}</strong></div>
-                    <div><span>Platform</span><strong>{activeDevice.platform}</strong></div>
-                    <div><span>Owner</span><strong>{activeDevice.owner}</strong></div>
-                  </div>
-                  <div className="service-block">
-                    <p className="eyebrow">DISCOVERED SERVICES</p>
-                    <div className="service-list">{activeDevice.services.map((service) => <code key={service}>{service}</code>)}</div>
-                  </div>
-                  <div className="layer-block">
-                    <p className="eyebrow">RELEVANT OSI LAYERS</p>
-                    <div>
-                      {activeDevice.layers.map((layer) => (
-                        <span key={layer} style={{ "--layer-dot": osiLayers.find((item) => item.number === layer)?.color } as CSSProperties}>
-                          L{layer} {osiLayers.find((item) => item.number === layer)?.name}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="connections" className="tab-scroll">
-                  <div className="connection-list">
-                    {activeDevice.connections.map((connection) => (
-                      <div key={`${activeDevice.id}-${connection.device}`}>
-                        <span className="connection-icon"><Network /></span>
-                        <span><strong>{connection.device}</strong><small>{connection.purpose}</small></span>
-                        <ArrowRight />
-                      </div>
-                    ))}
-                  </div>
-                </TabsContent>
-              </Tabs>
-            </>
-          )}
-        </SheetContent>
-      </Sheet>
+      <footer className="lab-footer"><span><ShieldCheck /> Training environment · fictional systems only</span><span>Use only on owned or authorised systems · Northstar snapshot 2026-08-18</span></footer>
     </main>
   );
 }
 
+function EmptyInspector({ preparedCount, onStart }: { preparedCount: number; onStart: () => void }) {
+  return (
+    <div className="inspector-empty">
+      <div className="empty-illustration"><PixelShield /><span><Wrench /></span></div>
+      <p className="section-eyebrow">REPAIR BENCH</p>
+      <h2>Choose an issue to begin</h2>
+      <p>Inspect the evidence, compare three different interventions, and choose the one that closes the attack path.</p>
+      <Button variant="outline" onClick={onStart}><Wrench /> Open first issue</Button>
+      <div className="bench-stats"><span><strong>{preparedCount}</strong><small>prepared</small></span><span><strong>3</strong><small>options / issue</small></span><span><strong>1</strong><small>clean report</small></span></div>
+    </div>
+  );
+}
+
+function RepairInspector({ bug, selectedFix, onChoose, onClose, report }: { bug: Bug; selectedFix?: string; onChoose: (fix: FixOption) => void; onClose: () => void; report: TestReport | null }) {
+  const selected = bug.fixes.find((fix) => fix.id === selectedFix);
+  const fixed = Boolean(selected?.correct);
+  const statusAfterTest = report?.unresolved.includes(bug.id) ? "open" : report ? "passed" : null;
+  return (
+    <div className="repair-inspector">
+      <div className="inspector-topline"><span className="section-eyebrow">REPAIR BENCH</span><button onClick={onClose} aria-label="Close issue"><X /></button></div>
+      <div className="bug-title-row"><div className={`bug-severity ${bug.severity}`}><AlertTriangle /></div><div><span className={`severity-text ${bug.severity}`}>{severityLabel(bug.severity)} control gap</span><h2 id="repair-heading">{bug.title}</h2><p>{bug.summary}</p></div></div>
+      <div className="evidence-card"><span className="card-label">OBSERVED EVIDENCE</span><code>{bug.evidence}</code></div>
+      <div className="risk-card"><span className="card-label">WHY IT MATTERS</span><p>{bug.risk}</p></div>
+      <div className="options-heading"><div><span className="section-eyebrow">CHOOSE A CONTROL</span><h3>Three possible interventions</h3></div><span>1 effective</span></div>
+      <div className="fix-list">
+        {bug.fixes.map((fix, index) => {
+          const FixIcon = repairIcons[fix.kind];
+          const isChosen = fix.id === selectedFix;
+          return (
+            <button className={`fix-option ${isChosen ? "is-chosen" : ""} ${isChosen && fixed ? "is-correct" : ""}`} key={fix.id} onClick={() => onChoose(fix)}>
+              <span className="fix-number">0{index + 1}</span><span className="fix-kind"><FixIcon /><small>{repairLabels[fix.kind]}</small></span><span className="fix-copy"><strong>{fix.label}</strong><small>{fix.detail}</small></span><span className="fix-radio">{isChosen ? <Check /> : null}</span>
+            </button>
+          );
+        })}
+      </div>
+      {selected && <div className={`selection-note ${fixed ? "good" : "warn"}`}>{fixed ? <Check /> : <AlertTriangle />}<span>{fixed ? "This control closes the modeled path. Run the test to verify it." : "This is a plausible change, but the modeled risk would remain."}</span></div>}
+      {statusAfterTest && <div className={`test-status ${statusAfterTest}`}>{statusAfterTest === "passed" ? <Check /> : <AlertTriangle />}<span>{statusAfterTest === "passed" ? "Pentester check passed for this issue." : "Pentester still reproduced this finding."}</span></div>}
+      <div className="inspector-footnote"><Settings2 /><span>Think: is this a physical boundary, a technical setting, or a process that keeps the control alive?</span></div>
+    </div>
+  );
+}
