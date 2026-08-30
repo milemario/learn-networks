@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="hu">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#101a2b" />
+    <title>Hálózati alapozó · béta</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">LEARN NETWORKS / BÉTA TESZT</p>
+          <h1>HÁLÓZATI ALAPOZÓ</h1>
+          <p class="subtitle">Egy kérés útja az otthoni géptől a vállalati alkalmazásig.</p>
+        </div>
+        <div class="progress-card" aria-live="polite">
+          <span>MEGOLDOTT HIBÁK</span>
+          <strong id="progress-count">0 / 4</strong>
+        </div>
+      </header>
+
+      <section class="intro panel">
+        <div>
+          <span class="tag">KÜLDETÉS 01</span>
+          <h2>Találd meg a gyenge pontokat</h2>
+          <p>A távoli dolgozó belső vállalati webalkalmazást nyitna meg. Vizsgáld meg a kérés útját, keresd a nyomokat, majd válaszd ki, melyik kontroll javítja a hibát.</p>
+        </div>
+        <button id="reset-button" class="button button-ghost" type="button">Újrakezdés</button>
+      </section>
+
+      <section class="game-layout">
+        <div class="diagram-panel panel">
+          <div class="section-heading">
+            <div><span class="tag">ÚTVONAL-TÉRKÉP</span><h2>Géptől a képernyőig</h2></div>
+            <span class="legend"><i class="dot dot-neutral"></i> semleges <i class="dot dot-clean"></i> tiszta <i class="dot dot-flaw"></i> hiba <i class="dot dot-fixed"></i> javítva</span>
+          </div>
+          <div class="diagram-scroll">
+            <div id="diagram" class="diagram" aria-label="Interaktív hálózati útvonal"></div>
+          </div>
+          <p class="diagram-note">A történet a valós kérés-életciklust követi; az OSI-réteg csak vizsgareferencia.</p>
+        </div>
+
+        <aside class="inspector panel" aria-live="polite">
+          <div id="inspector-empty" class="empty-state"><span class="pixel-mark">?</span><h2>Válassz állomást</h2><p>Kattints egy pontra a térképen, és kezdd az állapotfelmérést.</p></div>
+          <div id="inspector-content" hidden></div>
+        </aside>
+      </section>
+
+      <section class="guide panel">
+        <div><span class="tag">GYORS ÚTMUTATÓ</span><h2>5 lépéses vizsgálat</h2></div>
+        <ol><li>Kattints egy állomásra.</li><li>Olvasd el a rövid eligazítást.</li><li>Nyisd meg a nyomot.</li><li>Válassz: Firewall, Proxy vagy VPN.</li><li>Javítsd mind a 4 hibát, majd futtasd újra a tesztet.</li></ol>
+      </section>
+
+      <footer><span>BÉTA 0.1 · Fiktív, engedélyezett tanulási környezet</span><a href="../">← Vissza a működő laborhoz</a></footer>
+    </main>
+    <script src="./content.js"></script>
+    <script src="./script.js"></script>
+  </body>
+</html>
