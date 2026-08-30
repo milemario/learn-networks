@@ -6,6 +6,10 @@ export type FixOption = {
   label: string;
   detail: string;
   correct: boolean;
+  requires?: {
+    bugId: string;
+    fixId: string;
+  };
 };
 
 export type Bug = {
@@ -217,8 +221,8 @@ export const bugs: Bug[] = [
       { id: "admin-rack", kind: "physical", label: "Store the laptop in the server rack", detail: "Changing its storage location does not change the network service.", correct: false },
     ],
     hardFixes: [
-      { id: "hard-admin-nla", kind: "configuration", label: "Restrict RDP to the admin jump host and require NLA", detail: "Limit the source and enforce Network Level Authentication for the service.", correct: true },
-      { id: "hard-admin-remove", kind: "process", label: "Remove RDP from the user VLAN", detail: "Administer through a privileged jump box or local console instead.", correct: true },
+      { id: "hard-admin-nla", kind: "configuration", label: "Restrict RDP to the admin jump host and require NLA", detail: "Limit the source and enforce Network Level Authentication; the source must be the secured admin VPN jump host.", correct: true, requires: { bugId: "fw-ssh", fixId: "hard-fw-vpn" } },
+      { id: "hard-admin-remove", kind: "process", label: "Remove RDP from the user VLAN", detail: "Use the secured admin VPN jump host for privileged administration instead.", correct: true, requires: { bugId: "fw-ssh", fixId: "hard-fw-vpn" } },
       { id: "hard-admin-port", kind: "configuration", label: "Change the RDP port", detail: "Move the listener while keeping it reachable from the user VLAN.", correct: false },
     ],
   },

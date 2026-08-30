@@ -1677,6 +1677,12 @@ button {
   color: #9b5d36;
 }
 
+.test-status.dependency {
+  border: 1px solid #cbded8;
+  background: #f4faf7;
+  color: #4f716a;
+}
+
 .inspector-footnote {
   padding-top: 11px;
   border-top: 1px solid #e4ece7;

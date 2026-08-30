@@ -100,8 +100,14 @@ function fixesForMode(bug: Bug, hardMode: boolean) {
   return hardMode && bug.hardFixes ? bug.hardFixes : bug.fixes;
 }
 
-function isEffectiveFix(bug: Bug, selectedFix: string | undefined, hardMode: boolean) {
-  return Boolean(fixesForMode(bug, hardMode).find((fix) => fix.id === selectedFix)?.correct);
+function isEffectiveFix(bug: Bug, selectedFix: string | undefined, hardMode: boolean, selectedFixes: Record<string, string> = {}, visiting = new Set<string>()) {
+  const fix = fixesForMode(bug, hardMode).find((item) => item.id === selectedFix);
+  if (!fix?.correct) return false;
+  if (!hardMode || !fix.requires) return true;
+  if (visiting.has(bug.id)) return false;
+  const requiredBug = bugs.find((item) => item.id === fix.requires?.bugId);
+  if (!requiredBug) return false;
+  return isEffectiveFix(requiredBug, selectedFixes[requiredBug.id], hardMode, selectedFixes, new Set([...visiting, bug.id]));
 }
 
 const nodeSettings: Record<string, string[]> = {
@@ -172,8 +178,8 @@ export default function Home() {
   const selectedBug = bugs.find((bug) => bug.id === selectedBugId) ?? null;
   const selectedNode = nodes.find((node) => node.id === selectedNodeId) ?? null;
   const preparedCount = bugs.filter((bug) => fixesForMode(bug, hardMode).some((fix) => fix.id === selectedFixes[bug.id])).length;
-  const resolvedCount = bugs.filter((bug) => isEffectiveFix(bug, selectedFixes[bug.id], hardMode)).length;
-  const resolvedBugIds = bugs.filter((bug) => isEffectiveFix(bug, selectedFixes[bug.id], hardMode)).map((bug) => bug.id);
+  const resolvedCount = bugs.filter((bug) => isEffectiveFix(bug, selectedFixes[bug.id], hardMode, selectedFixes)).length;
+  const resolvedBugIds = bugs.filter((bug) => isEffectiveFix(bug, selectedFixes[bug.id], hardMode, selectedFixes)).map((bug) => bug.id);
   const hasTested = testRuns > 0 || Boolean(report);
   const visibleResolvedCount = hardMode && !report ? 0 : resolvedCount;
   const progress = Math.round((visibleResolvedCount / bugs.length) * 100);
@@ -200,7 +206,7 @@ export default function Home() {
     pentestStages.forEach((_, index) => window.setTimeout(() => setScanStep(index + 1), index * 620));
     window.setTimeout(() => {
       const unresolved = bugs
-        .filter((bug) => !isEffectiveFix(bug, selectedFixes[bug.id], hardMode))
+        .filter((bug) => !isEffectiveFix(bug, selectedFixes[bug.id], hardMode, selectedFixes))
         .map((bug) => bug.id);
       setReport({ clean: unresolved.length === 0, unresolved, run: nextRun });
       setTestRuns(nextRun);
@@ -284,7 +290,7 @@ export default function Home() {
                 {filteredBugs.map((bug, index) => {
                   const isSelected = selectedBugId === bug.id;
                   const selectedFix = selectedFixes[bug.id];
-                  const fixed = isEffectiveFix(bug, selectedFix, hardMode) && (!hardMode || Boolean(report));
+                  const fixed = isEffectiveFix(bug, selectedFix, hardMode, selectedFixes) && (!hardMode || Boolean(report));
                   return (
                     <button className={`issue-row ${isSelected ? "is-selected" : ""} ${fixed ? "is-fixed" : ""}`} key={bug.id} onClick={() => { setSelectedBugId(bug.id); setSelectedNodeId(null); }}>
                       <span className={`severity-dot ${bug.severity}`} />
@@ -341,7 +347,7 @@ export default function Home() {
                 const Icon = deviceIcons[node.icon];
                 const bug = getBugForNode(node.id);
                 const selection = bug ? selectedFixes[bug.id] : undefined;
-                const fixed = bug ? isEffectiveFix(bug, selection, hardMode) && (!hardMode || Boolean(report)) : false;
+                const fixed = bug ? isEffectiveFix(bug, selection, hardMode, selectedFixes) && (!hardMode || Boolean(report)) : false;
                 const isSelected = bug?.id === selectedBugId || node.id === selectedNodeId;
                 return (
                   <button key={node.id} className={`network-node ${node.zone} ${isSelected ? "is-selected" : ""} ${fixed ? "is-fixed" : ""} ${selection && !fixed && hasTested ? "is-prepared" : ""}`} style={{ left: `${node.position.x}%`, top: `${node.position.y}%` }} onClick={() => { if (bug && hasTested) { setSelectedBugId(bug.id); setSelectedNodeId(null); } else { setSelectedBugId(null); setSelectedNodeId(node.id); } }} aria-label={bug && hasTested ? `Inspect ${bug.title} on ${node.name}` : `Inspect ${node.name}`}>
@@ -358,7 +364,7 @@ export default function Home() {
 
         <aside className="repair-panel" aria-labelledby="repair-heading">
           {selectedBug ? (
-            <RepairInspector bug={selectedBug} selectedFix={selectedFixes[selectedBug.id]} onChoose={(fix) => chooseFix(selectedBug.id, fix)} onClose={() => setSelectedBugId(null)} report={report} hardMode={hardMode} />
+            <RepairInspector bug={selectedBug} selectedFix={selectedFixes[selectedBug.id]} selectedFixes={selectedFixes} onChoose={(fix) => chooseFix(selectedBug.id, fix)} onClose={() => setSelectedBugId(null)} report={report} hardMode={hardMode} />
           ) : selectedNode ? (
             <NodeInspector node={selectedNode} onClose={() => setSelectedNodeId(null)} hasTested={hasTested} />
           ) : (
@@ -454,12 +460,14 @@ function EmptyInspector({ preparedCount, hasTested, onStart }: { preparedCount: 
   );
 }
 
-function RepairInspector({ bug, selectedFix, onChoose, onClose, report, hardMode }: { bug: Bug; selectedFix?: string; onChoose: (fix: FixOption) => void; onClose: () => void; report: TestReport | null; hardMode: boolean }) {
+function RepairInspector({ bug, selectedFix, selectedFixes, onChoose, onClose, report, hardMode }: { bug: Bug; selectedFix?: string; selectedFixes: Record<string, string>; onChoose: (fix: FixOption) => void; onClose: () => void; report: TestReport | null; hardMode: boolean }) {
   const fixes = fixesForMode(bug, hardMode);
   const selected = fixes.find((fix) => fix.id === selectedFix);
   const observation = pentestObservations[bug.deviceId];
   const fixed = Boolean(selected?.correct) && (!hardMode || Boolean(report));
   const statusAfterTest = report?.unresolved.includes(bug.id) ? "open" : report ? "passed" : null;
+  const requiredBug = selected?.requires ? bugs.find((item) => item.id === selected.requires?.bugId) : undefined;
+  const dependencyBlocked = hardMode && Boolean(requiredBug) && !isEffectiveFix(requiredBug!, selectedFixes[requiredBug!.id], hardMode, selectedFixes);
   return (
     <div className="repair-inspector">
       <div className="inspector-topline"><span className="section-eyebrow">REPAIR BENCH</span><button onClick={onClose} aria-label="Close issue"><X /></button></div>
@@ -482,6 +490,7 @@ function RepairInspector({ bug, selectedFix, onChoose, onClose, report, hardMode
       </div>
       {!hardMode && selected && <div className={`selection-note ${fixed ? "good" : "warn"}`}>{fixed ? <Check /> : <AlertTriangle />}<span>{fixed ? "This control closed the modeled path in the last test." : "This is a plausible change, but the modeled risk would remain."}</span></div>}
       {statusAfterTest && <div className={`test-status ${statusAfterTest}`}>{statusAfterTest === "passed" ? <Check /> : <AlertTriangle />}<span>{statusAfterTest === "passed" ? "Pentester check passed for this issue." : "Pentester still reproduced this finding."}</span></div>}
+      {hardMode && statusAfterTest === "open" && dependencyBlocked && <div className="test-status dependency"><Settings2 /><span>This control depends on a boundary setting elsewhere in the path. Inspect the related node before retesting.</span></div>}
       <div className="inspector-footnote"><Settings2 /><span>Think: is this a physical boundary, a technical setting, or a process that keeps the control alive?</span></div>
     </div>
   );
