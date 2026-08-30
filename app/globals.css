@@ -1059,6 +1059,23 @@ button {
   place-items: center;
 }
 
+/* Isolated interaction cue: remove this block to disable selected-node motion. */
+.network-node.is-selected .node-sprite {
+  animation: selected-node-pulse 1.8s ease-in-out infinite;
+  transform-origin: center;
+}
+
+@keyframes selected-node-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.08); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .network-node.is-selected .node-sprite {
+    animation: none;
+  }
+}
+
 .node-sprite svg {
   width: 25px;
   height: 25px;
