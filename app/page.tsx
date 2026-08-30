@@ -3,8 +3,6 @@
 import { useMemo, useRef, useState, type ComponentType } from "react";
 import {
   AlertTriangle,
-  ArrowDown,
-  ArrowRight,
   Check,
   ChevronRight,
   CircleHelp,
@@ -28,8 +26,6 @@ import {
   bugs,
   edges,
   nodes,
-  securityChain,
-  tcpIpLayers,
   type Bug,
   type FixOption,
   type NetworkNode,
@@ -118,12 +114,25 @@ function roleHu(node: NetworkNode) {
   return nodeRoleHu[node.id] ?? node.role;
 }
 
+const nodeSettingsHu: Record<string, string[]> = {
+  "pentest-box": ["Forrás: 198.51.100.44", "Mód: csak engedélyezett vizsgálat", "Naplózás: aktív"],
+  internet: ["Típus: nem megbízható hálózat", "Források: 0.0.0.0/0", "Bizalmi szint: külső"],
+  "edge-fw": ["WAN-szabályok: 7", "Adminisztráció: TCP/22", "Zónák: WAN / DMZ / belső"],
+  "web-01": ["HTTP: TCP/80", "HTTPS: TCP/443", "Zóna: DMZ"],
+  "core-sw": ["VLAN-ok: 20 / 30 / 40", "Portbiztonság: házirend alapján", "Uplink: EDGE-FW"],
+  "db-01": ["Adatbázis: TCP/3306", "Zóna: szerver VLAN", "ACL: forrás alapján"],
+  "fs-01": ["SMB: TCP/445", "Megosztás: public", "Zóna: belső"],
+  "pc-07": ["VLAN: 20", "Frissítési állapot: megfigyelés alatt", "EDR: aktív"],
+  "admin-01": ["RDP: TCP/3389", "Szerep: kiemelt adminisztráció", "VLAN: 20"],
+  "ap-01": ["SSID: CorpNet / GuestNet", "VLAN-hozzárendelés: aktív", "Izoláció: SSID-szabály alapján"],
+};
+
 function timelineTone(stage: (typeof pentestStages)[number], index: number, activeStep: number, report: TestReport | null | undefined, resolvedBugIds: string[]) {
   if (!report) {
     if (index === activeStep - 1) return "running";
     if (index < activeStep) {
       if (!stage.affected.length || stage.affected.every((bugId) => resolvedBugIds.includes(bugId))) return "pass";
-      return "finding";
+      return "info";
     }
     return "pending";
   }
@@ -162,6 +171,7 @@ export default function Home() {
   const preparedCount = bugs.filter((bug) => selectedFixes[bug.id]).length;
   const resolvedCount = bugs.filter((bug) => bug.fixes.find((fix) => fix.id === selectedFixes[bug.id])?.correct).length;
   const resolvedBugIds = bugs.filter((bug) => bug.fixes.find((fix) => fix.id === selectedFixes[bug.id])?.correct).map((bug) => bug.id);
+  const hasTested = testRuns > 0 || Boolean(report);
   const visibleResolvedCount = hardMode && !report ? 0 : resolvedCount;
   const progress = Math.round((visibleResolvedCount / bugs.length) * 100);
 
@@ -227,9 +237,9 @@ export default function Home() {
 
       <section className="intro-strip">
         <div className="intro-copy">
-          <div className="intro-kicker"><Sparkles /> DEFENDER VIEW</div>
-          <h2>Repair the network. Then let the pentester try again.</h2>
-          <p>Find the weak control, choose one of three repairs, and keep testing until the mock report comes back clean.</p>
+          <div className="intro-kicker"><Sparkles /> CASE BRIEF</div>
+          <h2>Start with the map. Inspect the controls. Test the path.</h2>
+          <p>Click any device to review its current settings. The first pentest reveals which observations become attack paths.</p>
         </div>
         <div className="intro-action">
           <div className="control-progress">
@@ -244,63 +254,58 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="model-strip" aria-labelledby="model-heading">
-        <div className="model-label">
-          <p className="section-eyebrow">THE MAP WE USE</p>
-          <h2 id="model-heading">Security chain</h2>
-          <p>TCP/IP explains where a control lives. The chain explains why it matters.</p>
-        </div>
-        <div className="chain-row">
-          {securityChain.map((item, index) => (
-            <div className="chain-item" key={item.name}>
-              <span className="chain-number">0{index + 1}</span>
-              <div><strong>{item.name}</strong><small>{item.text}</small></div>
-              {index < securityChain.length - 1 && <ArrowRight className="chain-arrow" />}
-            </div>
-          ))}
-        </div>
-        <div className="model-note"><CircleHelp /><div><span>TCP/IP model</span><small>{tcpIpLayers.map((layer) => layer.name).join(" · ")}</small></div><ArrowDown /><span>security reasoning</span></div>
-      </section>
-
       <div className="lab-grid">
         <aside className="issue-rail" aria-labelledby="issues-heading">
-          <div className="rail-heading">
-            <div><p className="section-eyebrow">ISSUE QUEUE</p><h2 id="issues-heading">What needs attention?</h2></div>
-            <span className="issue-count">{bugs.length}</span>
-          </div>
-          <div className="filter-row" role="group" aria-label="Filter issues">
-            {(["all", "open", "prepared"] as Filter[]).map((item) => (
-              <button key={item} className={filter === item ? "is-active" : ""} onClick={() => setFilter(item)}>
-                {item === "all" ? "All" : item === "open" ? "Open" : "Prepared"}
-              </button>
-            ))}
-          </div>
-          <div className="issue-list">
-            {filteredBugs.map((bug, index) => {
-              const isSelected = selectedBugId === bug.id;
-              const selectedFix = selectedFixes[bug.id];
-              const fixed = Boolean(bug.fixes.find((fix) => fix.id === selectedFix)?.correct) && (!hardMode || Boolean(report));
-              return (
-                <button className={`issue-row ${isSelected ? "is-selected" : ""} ${fixed ? "is-fixed" : ""}`} key={bug.id} onClick={() => { setSelectedBugId(bug.id); setSelectedNodeId(null); }}>
-                  <span className={`severity-dot ${bug.severity}`} />
-                  <span className="issue-row-copy"><span className="issue-code">ISSUE 0{index + 1}</span><strong>{bug.title}</strong><small>{nodeMap.get(bug.deviceId)?.name} · {severityLabel(bug.severity)}</small></span>
-                  <span className="issue-status">{fixed ? <Check /> : selectedFix ? <Wrench /> : <ChevronRight />}</span>
-                </button>
-              );
-            })}
-          </div>
-          <div className="rail-legend">
-            <span><i className="legend-dot critical" /> Critical</span>
-            <span><i className="legend-dot high" /> High</span>
-            <span><i className="legend-dot medium" /> Medium</span>
-          </div>
-          <div className="rail-tip"><CircleHelp /><p>One issue can have a physical, setting, or process fix. Choose the control that actually closes the path.</p></div>
+          {hasTested ? (
+            <>
+              <div className="rail-heading">
+                <div><p className="section-eyebrow">ISSUE QUEUE</p><h2 id="issues-heading">What needs attention?</h2></div>
+                <span className="issue-count">{bugs.length}</span>
+              </div>
+              <div className="filter-row" role="group" aria-label="Filter issues">
+                {["all", "open", "prepared"].map((item) => (
+                  <button key={item} className={filter === item ? "is-active" : ""} onClick={() => setFilter(item as Filter)}>
+                    {item === "all" ? "All" : item === "open" ? "Open" : "Prepared"}
+                  </button>
+                ))}
+              </div>
+              <div className="issue-list">
+                {filteredBugs.map((bug, index) => {
+                  const isSelected = selectedBugId === bug.id;
+                  const selectedFix = selectedFixes[bug.id];
+                  const fixed = Boolean(bug.fixes.find((fix) => fix.id === selectedFix)?.correct) && (!hardMode || Boolean(report));
+                  return (
+                    <button className={`issue-row ${isSelected ? "is-selected" : ""} ${fixed ? "is-fixed" : ""}`} key={bug.id} onClick={() => { setSelectedBugId(bug.id); setSelectedNodeId(null); }}>
+                      <span className={`severity-dot ${bug.severity}`} />
+                      <span className="issue-row-copy"><span className="issue-code">ISSUE 0{index + 1}</span><strong>{bug.title}</strong><small>{nodeMap.get(bug.deviceId)?.name} · {severityLabel(bug.severity)}</small></span>
+                      <span className="issue-status">{fixed ? <Check /> : selectedFix ? <Wrench /> : <ChevronRight />}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="rail-legend">
+                <span><i className="legend-dot critical" /> Critical</span>
+                <span><i className="legend-dot high" /> High</span>
+                <span><i className="legend-dot medium" /> Medium</span>
+              </div>
+              <div className="rail-tip"><CircleHelp /><p>Use the map to understand the path, then choose the control that actually closes each finding.</p></div>
+            </>
+          ) : (
+            <div className="discovery-rail">
+              <p className="section-eyebrow">DISCOVERY MODE</p>
+              <h2 id="issues-heading">Start with the architecture</h2>
+              <p>The issue queue stays hidden until the first pentest. Click any device to inspect its current settings, then test the system to reveal which observations become attack paths.</p>
+              <Button variant="outline" onClick={testSystem} disabled={testing}><Play /> Run first pentest</Button>
+            </div>
+          )}
         </aside>
 
         <section className="network-panel" aria-labelledby="network-heading">
           <div className="network-panel-heading">
             <div><p className="section-eyebrow">ARCHITECTURE MAP</p><h2 id="network-heading">Northstar network</h2></div>
-            <div className="network-heading-meta"><span><i className="map-dot open" /> issue open</span><span><i className="map-dot fixed" /> repair prepared</span></div>
+            <div className="network-heading-meta">
+              {hasTested ? <><span><i className="map-dot open" /> issue open</span><span><i className="map-dot fixed" /> repair prepared</span></> : <span className="map-mode-hint">FINDINGS HIDDEN · SETTINGS VIEW</span>}
+            </div>
           </div>
           <div className="network-scroll">
             <div className="network-board">
@@ -328,25 +333,25 @@ export default function Home() {
                 const fixed = Boolean(bug?.fixes.find((fix) => fix.id === selection)?.correct) && (!hardMode || Boolean(report));
                 const isSelected = bug?.id === selectedBugId || node.id === selectedNodeId;
                 return (
-                  <button key={node.id} className={`network-node ${node.zone} ${isSelected ? "is-selected" : ""} ${fixed ? "is-fixed" : ""} ${selection && !fixed ? "is-prepared" : ""}`} style={{ left: `${node.position.x}%`, top: `${node.position.y}%` }} onClick={() => { if (bug) { setSelectedBugId(bug.id); setSelectedNodeId(null); } else { setSelectedBugId(null); setSelectedNodeId(node.id); } }} aria-label={bug ? `Inspect ${bug.title} on ${node.name}` : `Inspect ${node.name}`}>
+                  <button key={node.id} className={`network-node ${node.zone} ${isSelected ? "is-selected" : ""} ${fixed ? "is-fixed" : ""} ${selection && !fixed && hasTested ? "is-prepared" : ""}`} style={{ left: `${node.position.x}%`, top: `${node.position.y}%` }} onClick={() => { if (bug && hasTested) { setSelectedBugId(bug.id); setSelectedNodeId(null); } else { setSelectedBugId(null); setSelectedNodeId(node.id); } }} aria-label={bug && hasTested ? `Inspect ${bug.title} on ${node.name}` : `Inspect ${node.name}`}>
                     <span className="node-sprite"><Icon /></span>
                     <span className="node-copy"><strong>{node.name}</strong><small>{node.role}</small></span>
-                    {bug && <span className={`node-status ${fixed ? "fixed" : ""}`}>{fixed ? <Check /> : <AlertTriangle />}</span>}
+                    {bug && hasTested && <span className={`node-status ${fixed ? "fixed" : ""}`}>{fixed ? <Check /> : <AlertTriangle />}</span>}
                   </button>
                 );
               })}
             </div>
           </div>
-          <div className="network-caption"><span><CircleDot /> Choose an issue from the queue or click a flagged device.</span><span className="sprite-credit">Pixel device glyphs · MIT / pixelarticons</span></div>
+          <div className="network-caption"><span><CircleDot /> {hasTested ? "Choose a finding or click any device." : "Click any device to inspect its current settings. Run the pentest to reveal findings."}</span><span className="sprite-credit">Pixel device glyphs · MIT / pixelarticons</span></div>
         </section>
 
         <aside className="repair-panel" aria-labelledby="repair-heading">
           {selectedBug ? (
             <RepairInspector bug={selectedBug} selectedFix={selectedFixes[selectedBug.id]} onChoose={(fix) => chooseFix(selectedBug.id, fix)} onClose={() => setSelectedBugId(null)} report={report} hardMode={hardMode} />
           ) : selectedNode ? (
-            <NodeInspector node={selectedNode} onClose={() => setSelectedNodeId(null)} />
+            <NodeInspector node={selectedNode} onClose={() => setSelectedNodeId(null)} hasTested={hasTested} />
           ) : (
-            <EmptyInspector preparedCount={preparedCount} onStart={() => setSelectedBugId(bugs[0].id)} />
+            <EmptyInspector preparedCount={preparedCount} hasTested={hasTested} onStart={() => { if (hasTested) setSelectedBugId(bugs[0].id); else testSystem(); }} />
           )}
         </aside>
       </div>
@@ -398,33 +403,38 @@ function PentestTimeline({ activeStep, report, resolvedBugIds }: { activeStep: n
   );
 }
 
-function NodeInspector({ node, onClose }: { node: NetworkNode; onClose: () => void }) {
+function NodeInspector({ node, onClose, hasTested }: { node: NetworkNode; onClose: () => void; hasTested: boolean }) {
   const Icon = deviceIcons[node.icon];
+  const settings = nodeSettingsHu[node.id] ?? [];
   const context = node.id === "internet"
     ? "Az internet a nem megbízható külső hálózat. Innen érkeznek a tesztelt kérések, ezért a peremkontrolloknak itt kell szűrniük."
     : node.id === "pentest-box"
       ? "Ez az engedélyezett tesztgép. A jelentésben látható eszközlánc innen indítja a korlátozott, nem romboló ellenőrzéseket."
-      : `${node.name} a(z) ${node.zone === "dmz" ? "DMZ" : node.zone === "perimeter" ? "perem" : node.zone === "internal" ? "belső" : "külső"} zónában található. Ezen a ponton nincs külön modellezett hibajegy; a hálózati szerepe és a kapcsolatai a fontosak.`;
+      : `${node.name} a(z) ${node.zone === "dmz" ? "DMZ" : node.zone === "perimeter" ? "perem" : node.zone === "internal" ? "belső" : "külső"} zónában található. A hálózati szerepe, a beállításai és a kapcsolatai együtt adják a vizsgálati felületet.`;
   return (
     <div className="repair-inspector node-inspector">
       <div className="inspector-topline"><span className="section-eyebrow">HÁLÓZATI TÉRKÉP</span><button onClick={onClose} aria-label="Csomópont információ bezárása"><X /></button></div>
       <div className="node-info-title"><div className={`node-info-icon ${node.zone}`}><Icon /></div><div><span className="severity-text low">REFERENCIA-CSOMÓPONT</span><h2>{node.name}</h2><p>{roleHu(node)}</p></div></div>
       <div className="evidence-card"><span className="card-label">CSOMÓPONT ADATAI</span><code>{node.ip} · {node.zone === "outside" ? "KÜLSŐ" : node.zone === "perimeter" ? "PEREM" : node.zone === "dmz" ? "DMZ" : "BELSŐ"} ZÓNA</code></div>
+      <div className="settings-card">
+        <div className="settings-card-head"><span className="card-label">{hasTested ? "KONFIGURÁCIÓS PILLANATKÉP" : "AKTUÁLIS BEÁLLÍTÁSOK"}</span><span>{settings.length} érték</span></div>
+        <ul>{settings.map((setting) => <li key={setting}><span className="setting-bullet" />{setting}</li>)}</ul>
+      </div>
       <div className="risk-card node-context"><span className="card-label">MIÉRT FONTOS?</span><p>{context}</p></div>
-      <div className="selection-note neutral"><Settings2 /><span>Ezen a csomóponton nincs javítandó hibajegy. A narancssárga jelölésekhez tartozik javítási feladat.</span></div>
+      <div className="selection-note neutral"><Settings2 /><span>{hasTested ? "Ezen a csomóponton nincs javítandó hibajegy. A narancssárga jelölésekhez tartozik javítási feladat." : "Ezek megfigyelési adatok. A pentest mutatja meg, melyik eltérésből lesz tényleges támadási út."}</span></div>
       <div className="inspector-footnote"><CircleHelp /><span>A tiszta referencia-csomópontok is segítenek megérteni a támadási felületet.</span></div>
     </div>
   );
 }
 
-function EmptyInspector({ preparedCount, onStart }: { preparedCount: number; onStart: () => void }) {
+function EmptyInspector({ preparedCount, hasTested, onStart }: { preparedCount: number; hasTested: boolean; onStart: () => void }) {
   return (
     <div className="inspector-empty">
       <div className="empty-illustration"><PixelShield /><span><Wrench /></span></div>
       <p className="section-eyebrow">REPAIR BENCH</p>
-      <h2>Choose an issue to begin</h2>
-      <p>Inspect the evidence, compare three different interventions, and choose the one that closes the attack path.</p>
-      <Button variant="outline" onClick={onStart}><Wrench /> Open first issue</Button>
+      <h2>{hasTested ? "Choose an issue to begin" : "Inspect a device to begin"}</h2>
+      <p>{hasTested ? "Inspect the evidence, compare three different interventions, and choose the one that closes the attack path." : "Click any node on the architecture map to review its current settings. Run the first pentest before deciding what is actually vulnerable."}</p>
+      <Button variant="outline" onClick={onStart}>{hasTested ? <Wrench /> : <Play />} {hasTested ? "Open first issue" : "Run first pentest"}</Button>
       <div className="bench-stats"><span><strong>{preparedCount}</strong><small>prepared</small></span><span><strong>3</strong><small>options / issue</small></span><span><strong>1</strong><small>clean report</small></span></div>
     </div>
   );
@@ -440,6 +450,7 @@ function RepairInspector({ bug, selectedFix, onChoose, onClose, report, hardMode
       <div className="bug-title-row"><div className={`bug-severity ${bug.severity}`}><AlertTriangle /></div><div><span className={`severity-text ${bug.severity}`}>{severityLabel(bug.severity)} control gap</span><h2 id="repair-heading">{bug.title}</h2><p>{bug.summary}</p></div></div>
       <div className="evidence-card"><span className="card-label">OBSERVED EVIDENCE</span><code>{bug.evidence}</code></div>
       <div className="risk-card"><span className="card-label">WHY IT MATTERS</span><p>{bug.risk}</p></div>
+      <AttackPath bug={bug} selectedFix={selectedFix} report={report} />
       <div className="options-heading"><div><span className="section-eyebrow">CHOOSE A CONTROL</span><h3>Three possible interventions</h3></div><span>1 effective</span></div>
       <div className="fix-list">
         {bug.fixes.map((fix, index) => {
@@ -455,6 +466,26 @@ function RepairInspector({ bug, selectedFix, onChoose, onClose, report, hardMode
       {selected && <div className={`selection-note ${fixed ? "good" : hardMode ? "neutral" : "warn"}`}>{fixed ? <Check /> : hardMode ? <Settings2 /> : <AlertTriangle />}<span>{fixed ? "This control closed the modeled path in the last test." : hardMode ? "Selection recorded. Run the pentest to verify whether it closes the path." : "This is a plausible change, but the modeled risk would remain."}</span></div>}
       {statusAfterTest && <div className={`test-status ${statusAfterTest}`}>{statusAfterTest === "passed" ? <Check /> : <AlertTriangle />}<span>{statusAfterTest === "passed" ? "Pentester check passed for this issue." : "Pentester still reproduced this finding."}</span></div>}
       <div className="inspector-footnote"><Settings2 /><span>Think: is this a physical boundary, a technical setting, or a process that keeps the control alive?</span></div>
+    </div>
+  );
+}
+
+function AttackPath({ bug, selectedFix, report }: { bug: Bug; selectedFix?: string; report: TestReport | null }) {
+  const asset = nodeMap.get(bug.deviceId);
+  const chosen = bug.fixes.find((fix) => fix.id === selectedFix);
+  const retest = report ? (report.unresolved.includes(bug.id) ? "Still open" : "Passed") : "Not tested yet";
+  const threat = asset?.zone === "internal" ? "Lateral attacker" : "External attacker";
+
+  return (
+    <div className="attack-path">
+      <div className="attack-path-heading"><span className="section-eyebrow">SECURITY REASONING</span><span>evidence → decision → retest</span></div>
+      <div className="attack-path-grid">
+        <div><small>Asset</small><strong>{asset?.name ?? bug.deviceId}</strong></div>
+        <div><small>Threat</small><strong>{threat}</strong></div>
+        <div><small>Weak control</small><strong>{bug.title}</strong></div>
+        <div><small>Repair</small><strong>{chosen?.label ?? "Choose a control"}</strong></div>
+        <div><small>Retest</small><strong>{retest}</strong></div>
+      </div>
     </div>
   );
 }

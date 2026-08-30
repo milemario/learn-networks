@@ -241,27 +241,27 @@ button {
 }
 
 .intro-strip {
-  margin: 20px 0 14px;
-  padding: 20px 22px;
+  margin: 12px 0 14px;
+  padding: 13px 17px;
   border: 1px solid #cfe0d6;
   border-left: 4px solid var(--teal);
-  border-radius: 15px;
+  border-radius: 11px;
   background: linear-gradient(110deg, #ffffff 0%, #f6fbf8 60%, #ecf7f2 100%);
   box-shadow: 0 9px 24px rgba(35, 75, 58, 0.05);
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(320px, 430px);
   align-items: center;
-  gap: 28px;
+  gap: 18px;
 }
 
 .intro-kicker {
-  margin-bottom: 6px;
+  margin-bottom: 3px;
   color: var(--orange);
   display: flex;
   align-items: center;
   gap: 7px;
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 800;
   letter-spacing: 0.14em;
 }
@@ -271,21 +271,21 @@ button {
 }
 
 .intro-copy h2 {
-  max-width: 740px;
+  max-width: 760px;
   margin: 0;
   color: var(--ink);
-  font-size: clamp(22px, 2.4vw, 32px);
+  font-size: clamp(18px, 1.8vw, 23px);
   font-weight: 800;
   letter-spacing: -0.04em;
   line-height: 1.08;
 }
 
 .intro-copy p {
-  max-width: 680px;
-  margin: 8px 0 0;
+  max-width: 760px;
+  margin: 4px 0 0;
   color: var(--ink-soft);
-  font-size: 14px;
-  line-height: 1.5;
+  font-size: 11px;
+  line-height: 1.35;
 }
 
 .intro-action {
@@ -490,7 +490,10 @@ button {
 
 .lab-grid {
   display: grid;
-  grid-template-columns: 230px minmax(620px, 1fr) 340px;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  grid-template-areas:
+    "network repair"
+    "issues repair";
   align-items: start;
   gap: 14px;
 }
@@ -560,13 +563,48 @@ button {
 .node-context { margin-top: 12px; }
 .timeline-note { margin: 10px 0 0; color: #8a9b96; font-size: 9px; line-height: 1.4; }
 
-.issue-rail,
 .repair-panel {
   min-height: 650px;
 }
 
 .issue-rail {
+  min-height: 0;
+}
+
+.issue-rail { grid-area: issues; }
+.network-panel { grid-area: network; }
+.repair-panel { grid-area: repair; }
+
+.issue-rail {
   padding: 16px 12px 13px;
+}
+
+.discovery-rail {
+  padding: 18px 16px 17px;
+  border: 1px dashed #cbded4;
+  border-radius: 10px;
+  background: #f8fbf9;
+}
+
+.discovery-rail h2 {
+  margin: 4px 0 7px;
+  color: var(--ink);
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+}
+
+.discovery-rail p:not(.section-eyebrow) {
+  max-width: 650px;
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.discovery-rail button {
+  margin-top: 12px;
+  color: var(--teal);
 }
 
 .rail-heading {
@@ -633,6 +671,7 @@ button {
 
 .issue-list {
   display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 5px;
 }
 
@@ -821,6 +860,11 @@ button {
   display: inline-flex;
   align-items: center;
   gap: 5px;
+}
+
+.map-mode-hint {
+  color: #8a9b96;
+  letter-spacing: 0.06em;
 }
 
 .map-dot {
@@ -1279,6 +1323,117 @@ button {
   line-height: 1.4;
 }
 
+.settings-card {
+  padding: 11px 12px;
+  border: 1px solid #d5e3db;
+  border-radius: 9px;
+  background: #fbfdfc;
+}
+
+.settings-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.settings-card-head .card-label {
+  margin-bottom: 0;
+}
+
+.settings-card-head > span:last-child {
+  color: #8a9b96;
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.settings-card ul {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 5px;
+}
+
+.settings-card li {
+  color: #4e6b64;
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  line-height: 1.35;
+}
+
+.setting-bullet {
+  width: 5px;
+  height: 5px;
+  margin-top: 4px;
+  border-radius: 50%;
+  background: #8db8a7;
+  flex: 0 0 auto;
+}
+
+.attack-path {
+  padding: 11px;
+  border: 1px solid #d8e7df;
+  border-radius: 9px;
+  background: #f7fbf9;
+}
+
+.attack-path-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.attack-path-heading > span:last-child {
+  color: #86a096;
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.attack-path-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 9px;
+}
+
+.attack-path-grid > div {
+  min-width: 0;
+  padding: 7px;
+  border: 1px solid #e0ece6;
+  border-radius: 6px;
+  background: #ffffff;
+}
+
+.attack-path-grid small {
+  display: block;
+  color: #86a096;
+  font-family: var(--font-mono);
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.attack-path-grid strong {
+  display: block;
+  margin-top: 3px;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 9px;
+  font-weight: 760;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+}
+
 .options-heading {
   justify-content: space-between;
   gap: 10px;
@@ -1661,12 +1816,19 @@ button {
 
 @media (max-width: 1240px) {
   .lab-grid {
-    grid-template-columns: 220px minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) 300px;
+    grid-template-areas:
+      "network repair"
+      "issues repair";
   }
 
   .repair-panel {
-    grid-column: 1 / -1;
+    grid-column: auto;
     min-height: auto;
+  }
+
+  .issue-rail {
+    min-height: 0;
   }
 
   .repair-inspector,
@@ -1675,30 +1837,14 @@ button {
   }
 
   .repair-inspector {
-    grid-template-columns: minmax(220px, 0.75fr) minmax(0, 1.25fr);
-    align-items: start;
+    grid-template-columns: 1fr;
   }
 
-  .repair-inspector .inspector-topline,
-  .repair-inspector .bug-title-row,
-  .repair-inspector .evidence-card,
-  .repair-inspector .risk-card,
-  .repair-inspector .inspector-footnote {
+  .repair-inspector > * {
     grid-column: 1;
+    grid-row: auto;
+    margin-top: 0;
   }
-
-  .repair-inspector .options-heading,
-  .repair-inspector .fix-list,
-  .repair-inspector .selection-note,
-  .repair-inspector .test-status {
-    grid-column: 2;
-  }
-
-  .repair-inspector .options-heading { grid-row: 1 / span 2; }
-  .repair-inspector .fix-list { grid-row: 1 / span 3; margin-top: 31px; }
-  .repair-inspector .selection-note,
-  .repair-inspector .test-status { grid-row: 4; }
-  .repair-inspector .inspector-footnote { grid-row: 5; }
 }
 
 @media (max-width: 900px) {
@@ -1732,6 +1878,14 @@ button {
     grid-template-columns: repeat(6, minmax(108px, 1fr));
   }
 
+  .issue-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .attack-path-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .report-findings {
     grid-template-columns: 1fr;
   }
@@ -1758,7 +1912,7 @@ button {
   }
 
   .intro-copy h2 {
-    font-size: 24px;
+    font-size: 20px;
   }
 
   .intro-action {
@@ -1767,6 +1921,10 @@ button {
 
   .lab-grid {
     grid-template-columns: 1fr;
+    grid-template-areas:
+      "network"
+      "repair"
+      "issues";
   }
 
   .issue-rail,
