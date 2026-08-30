@@ -97,6 +97,8 @@ export default function Home() {
   const [report, setReport] = useState<TestReport | null>(null);
   const [testing, setTesting] = useState(false);
   const [testRuns, setTestRuns] = useState(0);
+  const [hardMode, setHardMode] = useState(false);
+  const [scanStep, setScanStep] = useState(0);
 
   const selectedBug = bugs.find((bug) => bug.id === selectedBugId) ?? null;
   const preparedCount = bugs.filter((bug) => selectedFixes[bug.id]).length;
@@ -118,7 +120,9 @@ export default function Home() {
     if (testing) return;
     setTesting(true);
     setReport(null);
+    setScanStep(0);
     const nextRun = testRuns + 1;
+    [1, 2, 3, 4, 5].forEach((step, index) => window.setTimeout(() => setScanStep(step), index * 420));
     window.setTimeout(() => {
       const unresolved = bugs
         .filter((bug) => !bug.fixes.find((fix) => fix.id === selectedFixes[bug.id])?.correct)
@@ -139,7 +143,7 @@ export default function Home() {
   }
 
   return (
-    <main className="lab-shell">
+    <main className={`lab-shell ${hardMode ? "hard-mode" : ""}`}>
       <header className="lab-header">
         <div className="brand-lockup">
           <div className="pixel-brand-mark"><PixelSwitch /></div>
@@ -154,6 +158,7 @@ export default function Home() {
         </div>
         <div className="header-actions">
           <span className="authorized-chip"><LockKeyhole /> authorised simulation</span>
+          <button className={`difficulty-toggle ${hardMode ? "active" : ""}`} onClick={() => setHardMode((value) => !value)} aria-pressed={hardMode}>{hardMode ? "Hard mode" : "Easy mode"}</button>
           <Button className="light-button" variant="ghost" size="sm" onClick={resetLab}><RotateCcw /> Reset</Button>
         </div>
       </header>
@@ -274,7 +279,7 @@ export default function Home() {
 
         <aside className="repair-panel" aria-labelledby="repair-heading">
           {selectedBug ? (
-            <RepairInspector bug={selectedBug} selectedFix={selectedFixes[selectedBug.id]} onChoose={(fix) => chooseFix(selectedBug.id, fix)} onClose={() => setSelectedBugId(null)} report={report} />
+            <RepairInspector bug={selectedBug} selectedFix={selectedFixes[selectedBug.id]} onChoose={(fix) => chooseFix(selectedBug.id, fix)} onClose={() => setSelectedBugId(null)} report={report} hardMode={hardMode} />
           ) : (
             <EmptyInspector preparedCount={preparedCount} onStart={() => setSelectedBugId(bugs[0].id)} />
           )}
@@ -287,7 +292,9 @@ export default function Home() {
           <div><p className="section-eyebrow">PENTESTER OUTPUT</p><h2 id="report-heading">Mock penetration test report</h2></div>
           {report && <span className={`report-status ${report.clean ? "clean" : "open"}`}>{report.clean ? <><Check /> CLEAN RUN {report.run}</> : <><AlertTriangle /> {report.unresolved.length} FINDING{report.unresolved.length === 1 ? "" : "S"} OPEN</>}</span>}
         </div>
-        {!report ? (
+        {testing ? (
+          <div className="scan-progress"><div className="scan-progress-top"><strong>PENTEST-BOX IS RUNNING</strong><span>{scanStep} / 5</span></div><div className="scan-track"><span style={{ width: `${scanStep * 20}%` }} /></div><div className="scan-log" aria-live="polite">{["Initialising authorised scan…", "Running nmap — host discovered", "Found open ports: 443, 8443", "Checking firewall and segmentation rules", "Testing proxy bypass and endpoint exposure"][Math.max(0, scanStep - 1)]}</div></div>
+        ) : !report ? (
           <div className="report-empty"><div><strong>Ready when you are.</strong><p>The authorised PENTEST-BOX will check the eight controls in this case and show what an attacker can still reach.</p></div><Button variant="outline" onClick={testSystem} disabled={testing}><Play /> Run mock test</Button></div>
         ) : report.clean ? (
           <div className="report-clean"><Check /><div><strong>No exploitable path found in this test run.</strong><p>External access is constrained, trust boundaries hold, and the endpoint baseline is back in place. Residual risk still needs normal monitoring.</p></div><span className="clean-stamp">8 / 8 checks passed</span></div>
@@ -314,7 +321,7 @@ function EmptyInspector({ preparedCount, onStart }: { preparedCount: number; onS
   );
 }
 
-function RepairInspector({ bug, selectedFix, onChoose, onClose, report }: { bug: Bug; selectedFix?: string; onChoose: (fix: FixOption) => void; onClose: () => void; report: TestReport | null }) {
+function RepairInspector({ bug, selectedFix, onChoose, onClose, report, hardMode }: { bug: Bug; selectedFix?: string; onChoose: (fix: FixOption) => void; onClose: () => void; report: TestReport | null; hardMode: boolean }) {
   const selected = bug.fixes.find((fix) => fix.id === selectedFix);
   const fixed = Boolean(selected?.correct);
   const statusAfterTest = report?.unresolved.includes(bug.id) ? "open" : report ? "passed" : null;
@@ -330,7 +337,7 @@ function RepairInspector({ bug, selectedFix, onChoose, onClose, report }: { bug:
           const FixIcon = repairIcons[fix.kind];
           const isChosen = fix.id === selectedFix;
           return (
-            <button className={`fix-option ${isChosen ? "is-chosen" : ""} ${isChosen && fixed ? "is-correct" : ""}`} key={fix.id} onClick={() => onChoose(fix)}>
+            <button className={`fix-option ${isChosen ? "is-chosen" : ""} ${isChosen && fixed && !hardMode ? "is-correct" : ""}`} key={fix.id} onClick={() => onChoose(fix)}>
               <span className="fix-number">0{index + 1}</span><span className="fix-kind"><FixIcon /><small>{repairLabels[fix.kind]}</small></span><span className="fix-copy"><strong>{fix.label}</strong><small>{fix.detail}</small></span><span className="fix-radio">{isChosen ? <Check /> : null}</span>
             </button>
           );

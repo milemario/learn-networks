@@ -505,6 +505,23 @@ button {
   box-shadow: 0 6px 20px rgba(46, 78, 64, 0.035);
 }
 
+.difficulty-toggle {
+  border: 1px solid #c7d8d2;
+  background: #f8fbf9;
+  color: #51706a;
+  border-radius: 999px;
+  padding: 5px 9px;
+  font: 700 9px var(--font-mono);
+  cursor: pointer;
+}
+.difficulty-toggle.active { background: #263f4b; color: #fff; border-color: #263f4b; }
+.scan-progress { margin-top: 15px; padding: 15px; border: 1px solid #b9d7cd; background: #f5fbf8; }
+.scan-progress-top { display: flex; justify-content: space-between; font: 700 10px var(--font-mono); color: #477b70; }
+.scan-track { height: 8px; background: #dcebe6; border-radius: 4px; margin: 11px 0; overflow: hidden; }
+.scan-track span { display: block; height: 100%; background: var(--teal); transition: width .3s ease; }
+.scan-log { color: #44645e; font: 12px var(--font-mono); min-height: 18px; }
+.hard-mode .fix-option.is-chosen { border-color: #a9c2ba; background: #fff; }
+
 .issue-rail,
 .repair-panel {
   min-height: 650px;
