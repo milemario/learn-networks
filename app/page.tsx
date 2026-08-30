@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type ComponentType } from "react";
+import { useMemo, useRef, useState, type ComponentType } from "react";
 import {
   AlertTriangle,
   ArrowDown,
@@ -57,14 +57,14 @@ type TestReport = {
 };
 
 const pentestStages = [
-  { phase: "01", name: "Scope & rules of engagement", tool: "PENTEST-BOX", command: "scope --case northstar-01", output: "Authorised target, source address and test window confirmed." },
-  { phase: "02", name: "Asset discovery", tool: "dig / host", command: "dig northstar.example A +short", output: "203.0.113.10 → edge firewall; published service identified." },
-  { phase: "03", name: "Port & service enumeration", tool: "nmap", command: "nmap -sV -Pn 203.0.113.10", output: "443/tcp HTTPS · 22/tcp SSH · 80/tcp HTTP response observed." },
-  { phase: "04", name: "Transport & TLS checks", tool: "openssl / curl", command: "openssl s_client · curl -I", output: "Certificate, redirects and security headers compared with the baseline." },
-  { phase: "05", name: "Web surface mapping", tool: "HTTP probe", command: "GET / · safe path checks", output: "Portal and administration paths catalogued without destructive payloads." },
-  { phase: "06", name: "Boundary validation", tool: "nmap / policy probes", command: "controlled source-and-port tests", output: "Firewall, VLAN and lateral reachability rules tested from authorised positions." },
-  { phase: "07", name: "Non-destructive confirmation", tool: "curl / session checks", command: "repeat observed attack paths", output: "Only the evidence needed to confirm exploitability is replayed." },
-  { phase: "08", name: "Retest & report", tool: "diff / evidence log", command: "compare before → after", output: "Open paths are recorded for the defender; fixes are not assumed effective." },
+  { phase: "01", name: "Scope & rules of engagement", tool: "PENTEST-BOX", command: "scope --case northstar-01", output: "Authorised target, source address and test window confirmed.", affected: [] },
+  { phase: "02", name: "Asset discovery", tool: "dig / host", command: "dig northstar.example A +short", output: "203.0.113.10 → edge firewall; published service identified.", affected: [] },
+  { phase: "03", name: "Port & service enumeration", tool: "nmap", command: "nmap -sV -Pn 203.0.113.10", output: "443/tcp HTTPS · 22/tcp SSH · 80/tcp HTTP response observed.", affected: ["fw-ssh", "web-tls"] },
+  { phase: "04", name: "Transport & TLS checks", tool: "openssl / curl", command: "openssl s_client · curl -I", output: "Certificate, redirects and security headers compared with the baseline.", affected: ["web-tls"] },
+  { phase: "05", name: "Web surface mapping", tool: "HTTP probe", command: "GET / · safe path checks", output: "Portal and administration paths catalogued without destructive payloads.", affected: ["web-tls"] },
+  { phase: "06", name: "Boundary validation", tool: "nmap / policy probes", command: "controlled source-and-port tests", output: "Firewall, VLAN and lateral reachability rules tested from authorised positions.", affected: ["fw-ssh", "db-acl", "wifi-guest", "switch-ports", "fileshare", "admin-rdp"] },
+  { phase: "07", name: "Non-destructive confirmation", tool: "curl / session checks", command: "repeat observed attack paths", output: "Only the evidence needed to confirm exploitability is replayed.", affected: bugs.map((bug) => bug.id) },
+  { phase: "08", name: "Retest & report", tool: "diff / evidence log", command: "compare before → after", output: "Open paths are recorded for the defender; fixes are not assumed effective.", affected: bugs.map((bug) => bug.id) },
 ];
 
 const deviceIcons: Record<NetworkNode["icon"], ComponentType<PixelIconProps>> = {
@@ -101,8 +101,33 @@ function getBugForNode(nodeId: string) {
   return bugs.find((bug) => bug.deviceId === nodeId);
 }
 
+function timelineTone(stage: (typeof pentestStages)[number], index: number, activeStep: number, report?: TestReport | null) {
+  if (!report) {
+    if (index === activeStep - 1) return "running";
+    if (index < activeStep) return stage.affected.length ? "finding" : "info";
+    return "pending";
+  }
+  if (!stage.affected.length) return "info";
+  return stage.affected.some((bugId) => report.unresolved.includes(bugId)) ? "finding" : "pass";
+}
+
+function timelineToneLabel(tone: string) {
+  return tone === "finding" ? "FOUND" : tone === "pass" ? "CLEAR" : tone === "running" ? "RUNNING" : tone === "info" ? "OBSERVED" : "PENDING";
+}
+
+function timelineOutput(stage: (typeof pentestStages)[number], report?: TestReport | null) {
+  if (!report || !stage.affected.length) return stage.output;
+  const openFindings = stage.affected
+    .filter((bugId) => report.unresolved.includes(bugId))
+    .map((bugId) => bugs.find((bug) => bug.id === bugId)?.title)
+    .filter(Boolean);
+  if (openFindings.length) return `${stage.output} Finding corroborated: ${openFindings.join(" · ")}.`;
+  return `${stage.output} No exposure from this phase remained reproducible.`;
+}
+
 export default function Home() {
   const [selectedBugId, setSelectedBugId] = useState<string | null>(null);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>("all");
   const [selectedFixes, setSelectedFixes] = useState<Record<string, string>>({});
   const [report, setReport] = useState<TestReport | null>(null);
@@ -110,11 +135,14 @@ export default function Home() {
   const [testRuns, setTestRuns] = useState(0);
   const [hardMode, setHardMode] = useState(false);
   const [scanStep, setScanStep] = useState(0);
+  const reportRef = useRef<HTMLElement>(null);
 
   const selectedBug = bugs.find((bug) => bug.id === selectedBugId) ?? null;
+  const selectedNode = nodes.find((node) => node.id === selectedNodeId) ?? null;
   const preparedCount = bugs.filter((bug) => selectedFixes[bug.id]).length;
   const resolvedCount = bugs.filter((bug) => bug.fixes.find((fix) => fix.id === selectedFixes[bug.id])?.correct).length;
-  const progress = Math.round((resolvedCount / bugs.length) * 100);
+  const visibleResolvedCount = hardMode && !report ? 0 : resolvedCount;
+  const progress = Math.round((visibleResolvedCount / bugs.length) * 100);
 
   const filteredBugs = useMemo(() => bugs.filter((bug) => {
     if (filter === "open") return !selectedFixes[bug.id];
@@ -132,6 +160,7 @@ export default function Home() {
     setTesting(true);
     setReport(null);
     setScanStep(0);
+    window.setTimeout(() => reportRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 60);
     const nextRun = testRuns + 1;
     pentestStages.forEach((_, index) => window.setTimeout(() => setScanStep(index + 1), index * 620));
     window.setTimeout(() => {
@@ -146,6 +175,7 @@ export default function Home() {
 
   function resetLab() {
     setSelectedBugId(null);
+    setSelectedNodeId(null);
     setSelectedFixes({});
     setReport(null);
     setTesting(false);
@@ -182,13 +212,14 @@ export default function Home() {
         </div>
         <div className="intro-action">
           <div className="control-progress">
-            <div><span>Controls ready</span><strong>{resolvedCount} / {bugs.length}</strong></div>
-            <Progress value={progress} aria-label={`${resolvedCount} of ${bugs.length} controls ready`} />
+            <div><span>Controls ready</span><strong>{visibleResolvedCount} / {bugs.length}</strong></div>
+            <Progress value={progress} aria-label={`${visibleResolvedCount} of ${bugs.length} controls ready`} />
           </div>
           <Button className="test-button" onClick={testSystem} disabled={testing}>
             {testing ? <ScanLine className="spin-icon" /> : <TestTube2 />}
             {testing ? "Pentester running…" : "Test the system"}
           </Button>
+          {testing && <div className="top-scan-status" aria-live="polite"><span>{pentestStages[Math.max(0, scanStep - 1)]?.tool ?? "PENTEST-BOX"}</span><strong>{pentestStages[Math.max(0, scanStep - 1)]?.name ?? "Starting authorised scan…"}</strong></div>}
         </div>
       </section>
 
@@ -227,9 +258,9 @@ export default function Home() {
             {filteredBugs.map((bug, index) => {
               const isSelected = selectedBugId === bug.id;
               const selectedFix = selectedFixes[bug.id];
-              const fixed = Boolean(bug.fixes.find((fix) => fix.id === selectedFix)?.correct);
+              const fixed = Boolean(bug.fixes.find((fix) => fix.id === selectedFix)?.correct) && (!hardMode || Boolean(report));
               return (
-                <button className={`issue-row ${isSelected ? "is-selected" : ""} ${fixed ? "is-fixed" : ""}`} key={bug.id} onClick={() => setSelectedBugId(bug.id)}>
+                <button className={`issue-row ${isSelected ? "is-selected" : ""} ${fixed ? "is-fixed" : ""}`} key={bug.id} onClick={() => { setSelectedBugId(bug.id); setSelectedNodeId(null); }}>
                   <span className={`severity-dot ${bug.severity}`} />
                   <span className="issue-row-copy"><span className="issue-code">ISSUE 0{index + 1}</span><strong>{bug.title}</strong><small>{nodeMap.get(bug.deviceId)?.name} · {severityLabel(bug.severity)}</small></span>
                   <span className="issue-status">{fixed ? <Check /> : selectedFix ? <Wrench /> : <ChevronRight />}</span>
@@ -273,10 +304,10 @@ export default function Home() {
                 const Icon = deviceIcons[node.icon];
                 const bug = getBugForNode(node.id);
                 const selection = bug ? selectedFixes[bug.id] : undefined;
-                const fixed = Boolean(bug?.fixes.find((fix) => fix.id === selection)?.correct);
-                const isSelected = bug?.id === selectedBugId;
+                const fixed = Boolean(bug?.fixes.find((fix) => fix.id === selection)?.correct) && (!hardMode || Boolean(report));
+                const isSelected = bug?.id === selectedBugId || node.id === selectedNodeId;
                 return (
-                  <button key={node.id} className={`network-node ${node.zone} ${isSelected ? "is-selected" : ""} ${fixed ? "is-fixed" : ""} ${selection && !fixed ? "is-prepared" : ""}`} style={{ left: `${node.position.x}%`, top: `${node.position.y}%` }} onClick={() => bug ? setSelectedBugId(bug.id) : undefined} aria-label={bug ? `Inspect ${bug.title} on ${node.name}` : node.name}>
+                  <button key={node.id} className={`network-node ${node.zone} ${isSelected ? "is-selected" : ""} ${fixed ? "is-fixed" : ""} ${selection && !fixed ? "is-prepared" : ""}`} style={{ left: `${node.position.x}%`, top: `${node.position.y}%` }} onClick={() => { if (bug) { setSelectedBugId(bug.id); setSelectedNodeId(null); } else { setSelectedBugId(null); setSelectedNodeId(node.id); } }} aria-label={bug ? `Inspect ${bug.title} on ${node.name}` : `Inspect ${node.name}`}>
                     <span className="node-sprite"><Icon /></span>
                     <span className="node-copy"><strong>{node.name}</strong><small>{node.role}</small></span>
                     {bug && <span className={`node-status ${fixed ? "fixed" : ""}`}>{fixed ? <Check /> : <AlertTriangle />}</span>}
@@ -291,13 +322,15 @@ export default function Home() {
         <aside className="repair-panel" aria-labelledby="repair-heading">
           {selectedBug ? (
             <RepairInspector bug={selectedBug} selectedFix={selectedFixes[selectedBug.id]} onChoose={(fix) => chooseFix(selectedBug.id, fix)} onClose={() => setSelectedBugId(null)} report={report} hardMode={hardMode} />
+          ) : selectedNode ? (
+            <NodeInspector node={selectedNode} onClose={() => setSelectedNodeId(null)} />
           ) : (
             <EmptyInspector preparedCount={preparedCount} onStart={() => setSelectedBugId(bugs[0].id)} />
           )}
         </aside>
       </div>
 
-      <section className={`pentest-report ${report ? "has-report" : ""}`} aria-live="polite" aria-labelledby="report-heading">
+      <section ref={reportRef} className={`pentest-report ${report ? "has-report" : ""}`} aria-live="polite" aria-labelledby="report-heading">
         <div className="report-heading">
           <div className="report-icon"><ScanLine /></div>
           <div><p className="section-eyebrow">PENTESTER OUTPUT</p><h2 id="report-heading">Mock penetration test report</h2></div>
@@ -332,13 +365,33 @@ function PentestTimeline({ activeStep, report }: { activeStep: number; report?: 
         {pentestStages.map((stage, index) => {
           const done = activeStep > index;
           const running = activeStep === index + 1 && !report;
-          return <div className={`timeline-row ${done ? "done" : ""} ${running ? "running" : ""}`} key={stage.phase}>
-            <span className="timeline-marker">{done ? <Check /> : running ? <ScanLine className="spin-icon" /> : stage.phase}</span>
-            <div className="timeline-copy"><div className="timeline-top"><strong>{stage.name}</strong><span>{stage.tool}</span></div><code>{stage.command}</code><small>{stage.output}{report && index === pentestStages.length - 1 ? ` ${report.clean ? "No unresolved modeled path." : `${report.unresolved.length} modeled path${report.unresolved.length === 1 ? "" : "s"} still open.`}` : ""}</small></div>
+          const tone = timelineTone(stage, index, activeStep, report);
+          return <div className={`timeline-row ${done ? "done" : ""} ${running ? "running" : ""} tone-${tone}`} key={stage.phase}>
+            <span className="timeline-marker">{tone === "pass" ? <Check /> : tone === "finding" ? <AlertTriangle /> : running ? <ScanLine className="spin-icon" /> : stage.phase}</span>
+            <div className="timeline-copy"><div className="timeline-top"><strong>{stage.name}</strong><span>{stage.tool}</span></div><div className="timeline-result">{timelineToneLabel(tone)}</div><code>{stage.command}</code><small>{timelineOutput(stage, report)}{report && index === pentestStages.length - 1 ? ` ${report.clean ? "No unresolved modeled path." : `${report.unresolved.length} modeled path${report.unresolved.length === 1 ? "" : "s"} still open.`}` : ""}</small></div>
           </div>;
         })}
       </div>
       {report && <p className="timeline-note">A mock, non-destructive sequence for this fictional authorised environment. Tool names show the tester’s reasoning; no real network is scanned.</p>}
+    </div>
+  );
+}
+
+function NodeInspector({ node, onClose }: { node: NetworkNode; onClose: () => void }) {
+  const Icon = deviceIcons[node.icon];
+  const context = node.id === "internet"
+    ? "Az internet a nem megbízható külső hálózat. Innen érkeznek a tesztelt kérések, ezért a peremkontrolloknak itt kell szűrniük."
+    : node.id === "pentest-box"
+      ? "Ez az engedélyezett tesztgép. A jelentésben látható eszközlánc innen indítja a korlátozott, nem romboló ellenőrzéseket."
+      : `${node.name} a(z) ${node.zone} zónában található. Ezen a ponton nincs külön modellezett hibajegy; a hálózati szerepe és a kapcsolatai a fontosak.`;
+  return (
+    <div className="repair-inspector node-inspector">
+      <div className="inspector-topline"><span className="section-eyebrow">ARCHITECTURE MAP</span><button onClick={onClose} aria-label="Close node information"><X /></button></div>
+      <div className="node-info-title"><div className={`node-info-icon ${node.zone}`}><Icon /></div><div><span className="severity-text low">REFERENCE NODE</span><h2>{node.name}</h2><p>{node.role}</p></div></div>
+      <div className="evidence-card"><span className="card-label">NODE DETAILS</span><code>{node.ip} · {node.zone.toUpperCase()} ZONE</code></div>
+      <div className="risk-card node-context"><span className="card-label">WHY IT MATTERS</span><p>{context}</p></div>
+      <div className="selection-note neutral"><Settings2 /><span>Nincs javítandó hibajegy ezen a csomóponton. Kattints egy narancssárga jelölésre a javítási pad megnyitásához.</span></div>
+      <div className="inspector-footnote"><CircleHelp /><span>A tiszta referencia-csomópontok is részei a támadási felület megértésének.</span></div>
     </div>
   );
 }
@@ -358,7 +411,7 @@ function EmptyInspector({ preparedCount, onStart }: { preparedCount: number; onS
 
 function RepairInspector({ bug, selectedFix, onChoose, onClose, report, hardMode }: { bug: Bug; selectedFix?: string; onChoose: (fix: FixOption) => void; onClose: () => void; report: TestReport | null; hardMode: boolean }) {
   const selected = bug.fixes.find((fix) => fix.id === selectedFix);
-  const fixed = Boolean(selected?.correct);
+  const fixed = Boolean(selected?.correct) && (!hardMode || Boolean(report));
   const statusAfterTest = report?.unresolved.includes(bug.id) ? "open" : report ? "passed" : null;
   return (
     <div className="repair-inspector">
@@ -378,7 +431,7 @@ function RepairInspector({ bug, selectedFix, onChoose, onClose, report, hardMode
           );
         })}
       </div>
-      {selected && <div className={`selection-note ${fixed ? "good" : "warn"}`}>{fixed ? <Check /> : <AlertTriangle />}<span>{fixed ? "This control closes the modeled path. Run the test to verify it." : "This is a plausible change, but the modeled risk would remain."}</span></div>}
+      {selected && <div className={`selection-note ${fixed ? "good" : hardMode ? "neutral" : "warn"}`}>{fixed ? <Check /> : hardMode ? <Settings2 /> : <AlertTriangle />}<span>{fixed ? "This control closed the modeled path in the last test." : hardMode ? "Selection recorded. Run the pentest to verify whether it closes the path." : "This is a plausible change, but the modeled risk would remain."}</span></div>}
       {statusAfterTest && <div className={`test-status ${statusAfterTest}`}>{statusAfterTest === "passed" ? <Check /> : <AlertTriangle />}<span>{statusAfterTest === "passed" ? "Pentester check passed for this issue." : "Pentester still reproduced this finding."}</span></div>}
       <div className="inspector-footnote"><Settings2 /><span>Think: is this a physical boundary, a technical setting, or a process that keeps the control alive?</span></div>
     </div>
