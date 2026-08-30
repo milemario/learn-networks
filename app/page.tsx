@@ -56,6 +56,17 @@ type TestReport = {
   run: number;
 };
 
+const pentestStages = [
+  { phase: "01", name: "Scope & rules of engagement", tool: "PENTEST-BOX", command: "scope --case northstar-01", output: "Authorised target, source address and test window confirmed." },
+  { phase: "02", name: "Asset discovery", tool: "dig / host", command: "dig northstar.example A +short", output: "203.0.113.10 → edge firewall; published service identified." },
+  { phase: "03", name: "Port & service enumeration", tool: "nmap", command: "nmap -sV -Pn 203.0.113.10", output: "443/tcp HTTPS · 22/tcp SSH · 80/tcp HTTP response observed." },
+  { phase: "04", name: "Transport & TLS checks", tool: "openssl / curl", command: "openssl s_client · curl -I", output: "Certificate, redirects and security headers compared with the baseline." },
+  { phase: "05", name: "Web surface mapping", tool: "HTTP probe", command: "GET / · safe path checks", output: "Portal and administration paths catalogued without destructive payloads." },
+  { phase: "06", name: "Boundary validation", tool: "nmap / policy probes", command: "controlled source-and-port tests", output: "Firewall, VLAN and lateral reachability rules tested from authorised positions." },
+  { phase: "07", name: "Non-destructive confirmation", tool: "curl / session checks", command: "repeat observed attack paths", output: "Only the evidence needed to confirm exploitability is replayed." },
+  { phase: "08", name: "Retest & report", tool: "diff / evidence log", command: "compare before → after", output: "Open paths are recorded for the defender; fixes are not assumed effective." },
+];
+
 const deviceIcons: Record<NetworkNode["icon"], ComponentType<PixelIconProps>> = {
   globe: PixelGlobe,
   shield: PixelShield,
@@ -122,7 +133,7 @@ export default function Home() {
     setReport(null);
     setScanStep(0);
     const nextRun = testRuns + 1;
-    [1, 2, 3, 4, 5].forEach((step, index) => window.setTimeout(() => setScanStep(step), index * 420));
+    pentestStages.forEach((_, index) => window.setTimeout(() => setScanStep(index + 1), index * 620));
     window.setTimeout(() => {
       const unresolved = bugs
         .filter((bug) => !bug.fixes.find((fix) => fix.id === selectedFixes[bug.id])?.correct)
@@ -130,7 +141,7 @@ export default function Home() {
       setReport({ clean: unresolved.length === 0, unresolved, run: nextRun });
       setTestRuns(nextRun);
       setTesting(false);
-    }, 900);
+    }, pentestStages.length * 620 + 350);
   }
 
   function resetLab() {
@@ -293,18 +304,42 @@ export default function Home() {
           {report && <span className={`report-status ${report.clean ? "clean" : "open"}`}>{report.clean ? <><Check /> CLEAN RUN {report.run}</> : <><AlertTriangle /> {report.unresolved.length} FINDING{report.unresolved.length === 1 ? "" : "S"} OPEN</>}</span>}
         </div>
         {testing ? (
-          <div className="scan-progress"><div className="scan-progress-top"><strong>PENTEST-BOX IS RUNNING</strong><span>{scanStep} / 5</span></div><div className="scan-track"><span style={{ width: `${scanStep * 20}%` }} /></div><div className="scan-log" aria-live="polite">{["Initialising authorised scan…", "Running nmap — host discovered", "Found open ports: 443, 8443", "Checking firewall and segmentation rules", "Testing proxy bypass and endpoint exposure"][Math.max(0, scanStep - 1)]}</div></div>
+          <PentestTimeline activeStep={scanStep} />
         ) : !report ? (
           <div className="report-empty"><div><strong>Ready when you are.</strong><p>The authorised PENTEST-BOX will check the eight controls in this case and show what an attacker can still reach.</p></div><Button variant="outline" onClick={testSystem} disabled={testing}><Play /> Run mock test</Button></div>
-        ) : report.clean ? (
-          <div className="report-clean"><Check /><div><strong>No exploitable path found in this test run.</strong><p>External access is constrained, trust boundaries hold, and the endpoint baseline is back in place. Residual risk still needs normal monitoring.</p></div><span className="clean-stamp">8 / 8 checks passed</span></div>
         ) : (
-          <div className="report-findings"><div className="report-summary"><AlertTriangle /><div><strong>The network is still testable.</strong><p>Pick a repair for each open finding, then run the test again. A prepared option is not necessarily an effective control.</p></div></div><div className="report-list">{report.unresolved.map((bugId) => { const bug = bugs.find((item) => item.id === bugId)!; return <div className="report-row" key={bug.id}><span className={`severity-pill ${bug.severity}`}>{severityLabel(bug.severity)}</span><div><strong>{bug.reportFinding}</strong><small>{bug.reportHint}</small></div><button onClick={() => setSelectedBugId(bug.id)}>Repair <ChevronRight /></button></div>; })}</div></div>
+          <>
+            <PentestTimeline activeStep={pentestStages.length} report={report} />
+            {report.clean ? (
+              <div className="report-clean"><Check /><div><strong>No exploitable path found in this test run.</strong><p>External access is constrained, trust boundaries hold, and the endpoint baseline is back in place. Residual risk still needs normal monitoring.</p></div><span className="clean-stamp">8 / 8 checks passed</span></div>
+            ) : (
+              <div className="report-findings"><div className="report-summary"><AlertTriangle /><div><strong>The network is still testable.</strong><p>Pick a repair for each open finding, then run the test again. A prepared option is not necessarily an effective control.</p></div></div><div className="report-list">{report.unresolved.map((bugId) => { const bug = bugs.find((item) => item.id === bugId)!; return <div className="report-row" key={bug.id}><span className={`severity-pill ${bug.severity}`}>{severityLabel(bug.severity)}</span><div><strong>{bug.reportFinding}</strong><small>{bug.reportHint}</small></div><button onClick={() => setSelectedBugId(bug.id)}>Repair <ChevronRight /></button></div>; })}</div></div>
+            )}
+          </>
         )}
       </section>
 
       <footer className="lab-footer"><span><ShieldCheck /> Training environment · fictional systems only</span><span>Use only on owned or authorised systems · Northstar snapshot 2026-08-18</span></footer>
     </main>
+  );
+}
+
+function PentestTimeline({ activeStep, report }: { activeStep: number; report?: TestReport | null }) {
+  return (
+    <div className="pentest-timeline" aria-label="Pentest execution chain">
+      <div className="timeline-heading"><div><span className="section-eyebrow">TEST CHAIN</span><h3>{report ? `Run ${report.run} · evidence summary` : "Pentester execution chain"}</h3></div><span className="timeline-count">{activeStep} / {pentestStages.length}</span></div>
+      <div className="timeline-list">
+        {pentestStages.map((stage, index) => {
+          const done = activeStep > index;
+          const running = activeStep === index + 1 && !report;
+          return <div className={`timeline-row ${done ? "done" : ""} ${running ? "running" : ""}`} key={stage.phase}>
+            <span className="timeline-marker">{done ? <Check /> : running ? <ScanLine className="spin-icon" /> : stage.phase}</span>
+            <div className="timeline-copy"><div className="timeline-top"><strong>{stage.name}</strong><span>{stage.tool}</span></div><code>{stage.command}</code><small>{stage.output}{report && index === pentestStages.length - 1 ? ` ${report.clean ? "No unresolved modeled path." : `${report.unresolved.length} modeled path${report.unresolved.length === 1 ? "" : "s"} still open.`}` : ""}</small></div>
+          </div>;
+        })}
+      </div>
+      {report && <p className="timeline-note">A mock, non-destructive sequence for this fictional authorised environment. Tool names show the tester’s reasoning; no real network is scanned.</p>}
+    </div>
   );
 }
 
