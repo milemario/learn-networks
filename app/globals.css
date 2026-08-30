@@ -189,9 +189,52 @@ button {
   font-weight: 600;
 }
 
+.case-hint {
+  color: #8a9b96;
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .header-actions {
   justify-content: flex-end;
+  flex-wrap: wrap;
   gap: 9px;
+}
+
+.header-test-cluster {
+  min-width: 285px;
+  display: grid;
+  gap: 5px;
+}
+
+.header-test-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.header-test-cluster .control-progress {
+  min-width: 118px;
+  flex: 1 1 auto;
+  padding-right: 12px;
+}
+
+.header-test-cluster .control-progress > div {
+  margin-bottom: 5px;
+  font-size: 8px;
+}
+
+.header-test-cluster .control-progress [data-slot="progress"] {
+  height: 6px;
+}
+
+.header-test-cluster .test-button {
+  min-height: 40px;
+  padding: 0 13px;
+  font-size: 12px;
 }
 
 .authorized-chip {
@@ -524,9 +567,9 @@ button {
 .scan-track span { display: block; height: 100%; background: var(--teal); transition: width .3s ease; }
 .scan-log { color: #44645e; font: 12px var(--font-mono); min-height: 18px; }
 .hard-mode .fix-option.is-chosen { border-color: #a9c2ba; background: #fff; }
-.top-scan-status { margin-top: 8px; padding: 7px 9px; border-left: 3px solid var(--orange); background: #fff8f1; color: #8c5d40; display: grid; gap: 2px; }
+.top-scan-status { margin-top: 0; padding: 5px 7px; border-left: 3px solid var(--orange); background: #fff8f1; color: #8c5d40; display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
 .top-scan-status span { font: 800 8px var(--font-mono); text-transform: uppercase; letter-spacing: .06em; }
-.top-scan-status strong { font-size: 10px; font-weight: 750; }
+.top-scan-status strong { overflow: hidden; font-size: 9px; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
 .pentest-timeline { margin-top: 15px; padding: 15px; border: 1px solid #b9d7cd; border-radius: 9px; background: #f8fcfa; }
 .timeline-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
 .timeline-heading h3 { margin: 2px 0 0; color: var(--ink); font-size: 13px; }
@@ -1895,6 +1938,8 @@ button {
   .lab-header {
     min-height: 67px;
     padding: 12px 0;
+    grid-template-columns: 1fr;
+    gap: 10px;
   }
 
   .brand-lockup h1 {
@@ -1903,6 +1948,26 @@ button {
 
   .authorized-chip {
     display: none;
+  }
+
+  .header-actions {
+    justify-content: flex-start;
+    align-items: center;
+    gap: 7px;
+  }
+
+  .header-test-cluster {
+    width: 100%;
+    min-width: 0;
+    flex: 1 1 100%;
+  }
+
+  .header-test-row {
+    width: 100%;
+  }
+
+  .header-test-cluster .test-button {
+    flex: 0 0 auto;
   }
 
   .intro-strip {

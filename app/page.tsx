@@ -14,7 +14,6 @@ import {
   ScanLine,
   Settings2,
   ShieldCheck,
-  Sparkles,
   TestTube2,
   Wrench,
   X,
@@ -227,32 +226,27 @@ export default function Home() {
         <div className="header-center">
           <span className="case-label">CASE 01</span>
           <span className="case-title">Northstar Logistics · pre-launch review</span>
+          <span className="case-hint">MAP → SETTINGS → PENTEST</span>
         </div>
         <div className="header-actions">
+          <div className="header-test-cluster">
+            <div className="header-test-row">
+              <div className="control-progress">
+                <div><span>Controls ready</span><strong>{visibleResolvedCount} / {bugs.length}</strong></div>
+                <Progress value={progress} aria-label={`${visibleResolvedCount} of ${bugs.length} controls ready`} />
+              </div>
+              <Button className="test-button" onClick={testSystem} disabled={testing}>
+                {testing ? <ScanLine className="spin-icon" /> : <TestTube2 />}
+                {testing ? "Pentester running…" : "Test the system"}
+              </Button>
+            </div>
+            {testing && <div className="top-scan-status" aria-live="polite"><span>{pentestStages[Math.max(0, scanStep - 1)]?.tool ?? "PENTEST-BOX"}</span><strong>{pentestStages[Math.max(0, scanStep - 1)]?.name ?? "Starting authorised scan…"}</strong></div>}
+          </div>
           <span className="authorized-chip"><LockKeyhole /> authorised simulation</span>
           <button className={`difficulty-toggle ${hardMode ? "active" : ""}`} onClick={() => setHardMode((value) => !value)} aria-pressed={hardMode}>{hardMode ? "Hard mode" : "Easy mode"}</button>
           <Button className="light-button" variant="ghost" size="sm" onClick={resetLab}><RotateCcw /> Reset</Button>
         </div>
       </header>
-
-      <section className="intro-strip">
-        <div className="intro-copy">
-          <div className="intro-kicker"><Sparkles /> CASE BRIEF</div>
-          <h2>Start with the map. Inspect the controls. Test the path.</h2>
-          <p>Click any device to review its current settings. The first pentest reveals which observations become attack paths.</p>
-        </div>
-        <div className="intro-action">
-          <div className="control-progress">
-            <div><span>Controls ready</span><strong>{visibleResolvedCount} / {bugs.length}</strong></div>
-            <Progress value={progress} aria-label={`${visibleResolvedCount} of ${bugs.length} controls ready`} />
-          </div>
-          <Button className="test-button" onClick={testSystem} disabled={testing}>
-            {testing ? <ScanLine className="spin-icon" /> : <TestTube2 />}
-            {testing ? "Pentester running…" : "Test the system"}
-          </Button>
-          {testing && <div className="top-scan-status" aria-live="polite"><span>{pentestStages[Math.max(0, scanStep - 1)]?.tool ?? "PENTEST-BOX"}</span><strong>{pentestStages[Math.max(0, scanStep - 1)]?.name ?? "Starting authorised scan…"}</strong></div>}
-        </div>
-      </section>
 
       <div className="lab-grid">
         <aside className="issue-rail" aria-labelledby="issues-heading">
