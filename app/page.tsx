@@ -414,7 +414,7 @@ function NodeInspector({ node, onClose, hasTested }: { node: NetworkNode; onClos
   return (
     <div className="repair-inspector node-inspector">
       <div className="inspector-topline"><span className="section-eyebrow">HÁLÓZATI TÉRKÉP</span><button onClick={onClose} aria-label="Csomópont információ bezárása"><X /></button></div>
-      <div className="node-info-title"><div className={`node-info-icon ${node.zone}`}><Icon /></div><div><span className="severity-text low">REFERENCIA-CSOMÓPONT</span><h2>{node.name}</h2><p>{roleHu(node)}</p></div></div>
+      <div className="node-info-title"><div className={`node-info-icon ${node.zone}`}><Icon /></div><div><span className="severity-text low">{hasTested ? "REFERENCIA-CSOMÓPONT" : "CSOMÓPONT-INSPEKCIÓ"}</span><h2>{node.name}</h2><p>{roleHu(node)}</p></div></div>
       <div className="evidence-card"><span className="card-label">CSOMÓPONT ADATAI</span><code>{node.ip} · {node.zone === "outside" ? "KÜLSŐ" : node.zone === "perimeter" ? "PEREM" : node.zone === "dmz" ? "DMZ" : "BELSŐ"} ZÓNA</code></div>
       <div className="settings-card">
         <div className="settings-card-head"><span className="card-label">{hasTested ? "KONFIGURÁCIÓS PILLANATKÉP" : "AKTUÁLIS BEÁLLÍTÁSOK"}</span><span>{settings.length} érték</span></div>
