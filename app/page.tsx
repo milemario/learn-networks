@@ -101,10 +101,30 @@ function getBugForNode(nodeId: string) {
   return bugs.find((bug) => bug.deviceId === nodeId);
 }
 
-function timelineTone(stage: (typeof pentestStages)[number], index: number, activeStep: number, report?: TestReport | null) {
+const nodeRoleHu: Record<NetworkNode["id"], string> = {
+  "pentest-box": "Engedélyezett tesztkonzol",
+  internet: "Nem megbízható hálózat",
+  "edge-fw": "Perem-tűzfal",
+  "web-01": "Ügyfélportál",
+  "core-sw": "Kezelt switch",
+  "db-01": "Pénzügyi adatbázis",
+  "fs-01": "Megosztott fájlkiszolgáló",
+  "pc-07": "Dolgozói munkaállomás",
+  "admin-01": "Adminisztrátori laptop",
+  "ap-01": "Vezeték nélküli hozzáférési pont",
+};
+
+function roleHu(node: NetworkNode) {
+  return nodeRoleHu[node.id] ?? node.role;
+}
+
+function timelineTone(stage: (typeof pentestStages)[number], index: number, activeStep: number, report: TestReport | null | undefined, resolvedBugIds: string[]) {
   if (!report) {
     if (index === activeStep - 1) return "running";
-    if (index < activeStep) return stage.affected.length ? "finding" : "info";
+    if (index < activeStep) {
+      if (!stage.affected.length || stage.affected.every((bugId) => resolvedBugIds.includes(bugId))) return "pass";
+      return "finding";
+    }
     return "pending";
   }
   if (!stage.affected.length) return "info";
@@ -141,6 +161,7 @@ export default function Home() {
   const selectedNode = nodes.find((node) => node.id === selectedNodeId) ?? null;
   const preparedCount = bugs.filter((bug) => selectedFixes[bug.id]).length;
   const resolvedCount = bugs.filter((bug) => bug.fixes.find((fix) => fix.id === selectedFixes[bug.id])?.correct).length;
+  const resolvedBugIds = bugs.filter((bug) => bug.fixes.find((fix) => fix.id === selectedFixes[bug.id])?.correct).map((bug) => bug.id);
   const visibleResolvedCount = hardMode && !report ? 0 : resolvedCount;
   const progress = Math.round((visibleResolvedCount / bugs.length) * 100);
 
@@ -337,12 +358,12 @@ export default function Home() {
           {report && <span className={`report-status ${report.clean ? "clean" : "open"}`}>{report.clean ? <><Check /> CLEAN RUN {report.run}</> : <><AlertTriangle /> {report.unresolved.length} FINDING{report.unresolved.length === 1 ? "" : "S"} OPEN</>}</span>}
         </div>
         {testing ? (
-          <PentestTimeline activeStep={scanStep} />
+          <PentestTimeline activeStep={scanStep} resolvedBugIds={resolvedBugIds} />
         ) : !report ? (
           <div className="report-empty"><div><strong>Ready when you are.</strong><p>The authorised PENTEST-BOX will check the eight controls in this case and show what an attacker can still reach.</p></div><Button variant="outline" onClick={testSystem} disabled={testing}><Play /> Run mock test</Button></div>
         ) : (
           <>
-            <PentestTimeline activeStep={pentestStages.length} report={report} />
+            <PentestTimeline activeStep={pentestStages.length} report={report} resolvedBugIds={resolvedBugIds} />
             {report.clean ? (
               <div className="report-clean"><Check /><div><strong>No exploitable path found in this test run.</strong><p>External access is constrained, trust boundaries hold, and the endpoint baseline is back in place. Residual risk still needs normal monitoring.</p></div><span className="clean-stamp">8 / 8 checks passed</span></div>
             ) : (
@@ -357,7 +378,7 @@ export default function Home() {
   );
 }
 
-function PentestTimeline({ activeStep, report }: { activeStep: number; report?: TestReport | null }) {
+function PentestTimeline({ activeStep, report, resolvedBugIds }: { activeStep: number; report?: TestReport | null; resolvedBugIds: string[] }) {
   return (
     <div className="pentest-timeline" aria-label="Pentest execution chain">
       <div className="timeline-heading"><div><span className="section-eyebrow">TEST CHAIN</span><h3>{report ? `Run ${report.run} · evidence summary` : "Pentester execution chain"}</h3></div><span className="timeline-count">{activeStep} / {pentestStages.length}</span></div>
@@ -365,7 +386,7 @@ function PentestTimeline({ activeStep, report }: { activeStep: number; report?: 
         {pentestStages.map((stage, index) => {
           const done = activeStep > index;
           const running = activeStep === index + 1 && !report;
-          const tone = timelineTone(stage, index, activeStep, report);
+          const tone = timelineTone(stage, index, activeStep, report, resolvedBugIds);
           return <div className={`timeline-row ${done ? "done" : ""} ${running ? "running" : ""} tone-${tone}`} key={stage.phase}>
             <span className="timeline-marker">{tone === "pass" ? <Check /> : tone === "finding" ? <AlertTriangle /> : running ? <ScanLine className="spin-icon" /> : stage.phase}</span>
             <div className="timeline-copy"><div className="timeline-top"><strong>{stage.name}</strong><span>{stage.tool}</span></div><div className="timeline-result">{timelineToneLabel(tone)}</div><code>{stage.command}</code><small>{timelineOutput(stage, report)}{report && index === pentestStages.length - 1 ? ` ${report.clean ? "No unresolved modeled path." : `${report.unresolved.length} modeled path${report.unresolved.length === 1 ? "" : "s"} still open.`}` : ""}</small></div>
@@ -383,15 +404,15 @@ function NodeInspector({ node, onClose }: { node: NetworkNode; onClose: () => vo
     ? "Az internet a nem megbízható külső hálózat. Innen érkeznek a tesztelt kérések, ezért a peremkontrolloknak itt kell szűrniük."
     : node.id === "pentest-box"
       ? "Ez az engedélyezett tesztgép. A jelentésben látható eszközlánc innen indítja a korlátozott, nem romboló ellenőrzéseket."
-      : `${node.name} a(z) ${node.zone} zónában található. Ezen a ponton nincs külön modellezett hibajegy; a hálózati szerepe és a kapcsolatai a fontosak.`;
+      : `${node.name} a(z) ${node.zone === "dmz" ? "DMZ" : node.zone === "perimeter" ? "perem" : node.zone === "internal" ? "belső" : "külső"} zónában található. Ezen a ponton nincs külön modellezett hibajegy; a hálózati szerepe és a kapcsolatai a fontosak.`;
   return (
     <div className="repair-inspector node-inspector">
-      <div className="inspector-topline"><span className="section-eyebrow">ARCHITECTURE MAP</span><button onClick={onClose} aria-label="Close node information"><X /></button></div>
-      <div className="node-info-title"><div className={`node-info-icon ${node.zone}`}><Icon /></div><div><span className="severity-text low">REFERENCE NODE</span><h2>{node.name}</h2><p>{node.role}</p></div></div>
-      <div className="evidence-card"><span className="card-label">NODE DETAILS</span><code>{node.ip} · {node.zone.toUpperCase()} ZONE</code></div>
-      <div className="risk-card node-context"><span className="card-label">WHY IT MATTERS</span><p>{context}</p></div>
-      <div className="selection-note neutral"><Settings2 /><span>Nincs javítandó hibajegy ezen a csomóponton. Kattints egy narancssárga jelölésre a javítási pad megnyitásához.</span></div>
-      <div className="inspector-footnote"><CircleHelp /><span>A tiszta referencia-csomópontok is részei a támadási felület megértésének.</span></div>
+      <div className="inspector-topline"><span className="section-eyebrow">HÁLÓZATI TÉRKÉP</span><button onClick={onClose} aria-label="Csomópont információ bezárása"><X /></button></div>
+      <div className="node-info-title"><div className={`node-info-icon ${node.zone}`}><Icon /></div><div><span className="severity-text low">REFERENCIA-CSOMÓPONT</span><h2>{node.name}</h2><p>{roleHu(node)}</p></div></div>
+      <div className="evidence-card"><span className="card-label">CSOMÓPONT ADATAI</span><code>{node.ip} · {node.zone === "outside" ? "KÜLSŐ" : node.zone === "perimeter" ? "PEREM" : node.zone === "dmz" ? "DMZ" : "BELSŐ"} ZÓNA</code></div>
+      <div className="risk-card node-context"><span className="card-label">MIÉRT FONTOS?</span><p>{context}</p></div>
+      <div className="selection-note neutral"><Settings2 /><span>Ezen a csomóponton nincs javítandó hibajegy. A narancssárga jelölésekhez tartozik javítási feladat.</span></div>
+      <div className="inspector-footnote"><CircleHelp /><span>A tiszta referencia-csomópontok is segítenek megérteni a támadási felületet.</span></div>
     </div>
   );
 }
