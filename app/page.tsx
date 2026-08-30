@@ -96,34 +96,30 @@ function getBugForNode(nodeId: string) {
   return bugs.find((bug) => bug.deviceId === nodeId);
 }
 
-const nodeRoleHu: Record<NetworkNode["id"], string> = {
-  "pentest-box": "Engedélyezett tesztkonzol",
-  internet: "Nem megbízható hálózat",
-  "edge-fw": "Perem-tűzfal",
-  "web-01": "Ügyfélportál",
-  "core-sw": "Kezelt switch",
-  "db-01": "Pénzügyi adatbázis",
-  "fs-01": "Megosztott fájlkiszolgáló",
-  "pc-07": "Dolgozói munkaállomás",
-  "admin-01": "Adminisztrátori laptop",
-  "ap-01": "Vezeték nélküli hozzáférési pont",
+const nodeSettings: Record<string, string[]> = {
+  "pentest-box": ["Source: 198.51.100.44", "Mode: authorised testing only", "Logging: active"],
+  internet: ["Type: untrusted network", "Sources: 0.0.0.0/0", "Trust level: external"],
+  "edge-fw": ["WAN rules: 7", "Administration: TCP/22", "Zones: WAN / DMZ / internal"],
+  "web-01": ["HTTP: TCP/80", "HTTPS: TCP/443", "Zone: DMZ"],
+  "core-sw": ["VLANs: 20 / 30 / 40", "Port security: policy-based", "Uplink: EDGE-FW"],
+  "db-01": ["Database: TCP/3306", "Zone: server VLAN", "ACL: source-based"],
+  "fs-01": ["SMB: TCP/445", "Share: public", "Zone: internal"],
+  "pc-07": ["VLAN: 20", "Patch status: under observation", "EDR: active"],
+  "admin-01": ["RDP: TCP/3389", "Role: privileged administration", "VLAN: 20"],
+  "ap-01": ["SSIDs: CorpNet / GuestNet", "VLAN assignment: active", "Isolation: SSID policy"],
 };
 
-function roleHu(node: NetworkNode) {
-  return nodeRoleHu[node.id] ?? node.role;
-}
-
-const nodeSettingsHu: Record<string, string[]> = {
-  "pentest-box": ["Forrás: 198.51.100.44", "Mód: csak engedélyezett vizsgálat", "Naplózás: aktív"],
-  internet: ["Típus: nem megbízható hálózat", "Források: 0.0.0.0/0", "Bizalmi szint: külső"],
-  "edge-fw": ["WAN-szabályok: 7", "Adminisztráció: TCP/22", "Zónák: WAN / DMZ / belső"],
-  "web-01": ["HTTP: TCP/80", "HTTPS: TCP/443", "Zóna: DMZ"],
-  "core-sw": ["VLAN-ok: 20 / 30 / 40", "Portbiztonság: házirend alapján", "Uplink: EDGE-FW"],
-  "db-01": ["Adatbázis: TCP/3306", "Zóna: szerver VLAN", "ACL: forrás alapján"],
-  "fs-01": ["SMB: TCP/445", "Megosztás: public", "Zóna: belső"],
-  "pc-07": ["VLAN: 20", "Frissítési állapot: megfigyelés alatt", "EDR: aktív"],
-  "admin-01": ["RDP: TCP/3389", "Szerep: kiemelt adminisztráció", "VLAN: 20"],
-  "ap-01": ["SSID: CorpNet / GuestNet", "VLAN-hozzárendelés: aktív", "Izoláció: SSID-szabály alapján"],
+const pentestObservations: Record<string, string> = {
+  "pentest-box": "The tester used the authorised PENTEST-BOX profile to confirm the source address, scope, and non-destructive test window.",
+  internet: "The tester used dig / host to resolve northstar.example and confirm the public entry point.",
+  "edge-fw": "The tester used nmap and policy probes; TCP/22 was reachable on the perimeter path.",
+  "web-01": "The tester used nmap, openssl, and curl; HTTP/TCP/80 responded and the HTTPS baseline was checked.",
+  "core-sw": "The tester used boundary probes to validate transit, VLAN, and lateral reachability from authorised positions.",
+  "db-01": "The tester used policy probes and a safe service check; TCP/3306 was reachable from more than the application source.",
+  "fs-01": "The tester used nmap and SMB service checks; TCP/445 and the legacy share path were visible.",
+  "pc-07": "The tester used boundary and endpoint checks; the workstation remained in the employee VLAN and outside the patch baseline.",
+  "admin-01": "The tester used nmap and controlled lateral probes; TCP/3389 was reachable from the user VLAN.",
+  "ap-01": "The tester used VLAN and policy probes; GuestNet still shared reachability with the employee segment.",
 };
 
 function timelineTone(stage: (typeof pentestStages)[number], index: number, activeStep: number, report: TestReport | null | undefined, resolvedBugIds: string[]) {
@@ -366,7 +362,7 @@ export default function Home() {
             {report.clean ? (
               <div className="report-clean"><Check /><div><strong>No exploitable path found in this test run.</strong><p>External access is constrained, trust boundaries hold, and the endpoint baseline is back in place. Residual risk still needs normal monitoring.</p></div><span className="clean-stamp">8 / 8 checks passed</span></div>
             ) : (
-              <div className="report-findings"><div className="report-summary"><AlertTriangle /><div><strong>The network is still testable.</strong><p>Pick a repair for each open finding, then run the test again. A prepared option is not necessarily an effective control.</p></div></div><div className="report-list">{report.unresolved.map((bugId) => { const bug = bugs.find((item) => item.id === bugId)!; return <div className="report-row" key={bug.id}><span className={`severity-pill ${bug.severity}`}>{severityLabel(bug.severity)}</span><div><strong>{bug.reportFinding}</strong><small>{bug.reportHint}</small></div><button onClick={() => setSelectedBugId(bug.id)}>Repair <ChevronRight /></button></div>; })}</div></div>
+              <div className="report-open-summary"><AlertTriangle /><div><strong>{report.unresolved.length} modeled path{report.unresolved.length === 1 ? "" : "s"} still open.</strong><p>Use the issue queue beside the map, or click a highlighted device to open its repair controls.</p></div></div>
             )}
           </>
         )}
@@ -399,24 +395,27 @@ function PentestTimeline({ activeStep, report, resolvedBugIds }: { activeStep: n
 
 function NodeInspector({ node, onClose, hasTested }: { node: NetworkNode; onClose: () => void; hasTested: boolean }) {
   const Icon = deviceIcons[node.icon];
-  const settings = nodeSettingsHu[node.id] ?? [];
+  const settings = nodeSettings[node.id] ?? [];
+  const observation = pentestObservations[node.id];
+  const zoneLabel = node.zone === "outside" ? "OUTSIDE" : node.zone === "perimeter" ? "PERIMETER" : node.zone === "dmz" ? "DMZ" : "INTERNAL";
   const context = node.id === "internet"
-    ? "Az internet a nem megbízható külső hálózat. Innen érkeznek a tesztelt kérések, ezért a peremkontrolloknak itt kell szűrniük."
+    ? "The internet is the untrusted external network. Tested requests originate here, so perimeter controls must filter them at the boundary."
     : node.id === "pentest-box"
-      ? "Ez az engedélyezett tesztgép. A jelentésben látható eszközlánc innen indítja a korlátozott, nem romboló ellenőrzéseket."
-      : `${node.name} a(z) ${node.zone === "dmz" ? "DMZ" : node.zone === "perimeter" ? "perem" : node.zone === "internal" ? "belső" : "külső"} zónában található. A hálózati szerepe, a beállításai és a kapcsolatai együtt adják a vizsgálati felületet.`;
+      ? "This is the authorised test console. The pentest report's tool chain starts here and runs controlled, non-destructive checks."
+      : `${node.name} sits in the ${zoneLabel.toLowerCase()} zone. Its role, settings, and connections together define the test surface.`;
   return (
     <div className="repair-inspector node-inspector">
-      <div className="inspector-topline"><span className="section-eyebrow">HÁLÓZATI TÉRKÉP</span><button onClick={onClose} aria-label="Csomópont információ bezárása"><X /></button></div>
-      <div className="node-info-title"><div className={`node-info-icon ${node.zone}`}><Icon /></div><div><span className="severity-text low">{hasTested ? "REFERENCIA-CSOMÓPONT" : "CSOMÓPONT-INSPEKCIÓ"}</span><h2>{node.name}</h2><p>{roleHu(node)}</p></div></div>
-      <div className="evidence-card"><span className="card-label">CSOMÓPONT ADATAI</span><code>{node.ip} · {node.zone === "outside" ? "KÜLSŐ" : node.zone === "perimeter" ? "PEREM" : node.zone === "dmz" ? "DMZ" : "BELSŐ"} ZÓNA</code></div>
+      <div className="inspector-topline"><span className="section-eyebrow">NETWORK MAP</span><button onClick={onClose} aria-label="Close node information"><X /></button></div>
+      <div className="node-info-title"><div className={`node-info-icon ${node.zone}`}><Icon /></div><div><span className="severity-text low">{hasTested ? "REFERENCE NODE" : "NODE INSPECTION"}</span><h2>{node.name}</h2><p>{node.role}</p></div></div>
+      <div className="evidence-card"><span className="card-label">NODE DETAILS</span><code>{node.ip} · {zoneLabel} ZONE</code></div>
       <div className="settings-card">
-        <div className="settings-card-head"><span className="card-label">{hasTested ? "KONFIGURÁCIÓS PILLANATKÉP" : "AKTUÁLIS BEÁLLÍTÁSOK"}</span><span>{settings.length} érték</span></div>
+        <div className="settings-card-head"><span className="card-label">{hasTested ? "CONFIGURATION SNAPSHOT" : "CURRENT SETTINGS"}</span><span>{settings.length} values</span></div>
         <ul>{settings.map((setting) => <li key={setting}><span className="setting-bullet" />{setting}</li>)}</ul>
       </div>
-      <div className="risk-card node-context"><span className="card-label">MIÉRT FONTOS?</span><p>{context}</p></div>
-      <div className="selection-note neutral"><Settings2 /><span>{hasTested ? "Ezen a csomóponton nincs javítandó hibajegy. A narancssárga jelölésekhez tartozik javítási feladat." : "Ezek megfigyelési adatok. A pentest mutatja meg, melyik eltérésből lesz tényleges támadási út."}</span></div>
-      <div className="inspector-footnote"><CircleHelp /><span>A tiszta referencia-csomópontok is segítenek megérteni a támadási felületet.</span></div>
+      {hasTested && observation && <div className="test-observation"><div className="test-observation-head"><span className="card-label">PENTEST OBSERVATION</span><span>CONFIRMED</span></div><p>{observation}</p></div>}
+      <div className="risk-card node-context"><span className="card-label">WHY IT MATTERS</span><p>{context}</p></div>
+      <div className="selection-note neutral"><Settings2 /><span>{hasTested ? "This node has no repair finding. Orange markers identify the controls that need attention." : "These are observation points. The pentest shows which deviation becomes a real attack path."}</span></div>
+      <div className="inspector-footnote"><CircleHelp /><span>Clean reference nodes still help explain the attack surface.</span></div>
     </div>
   );
 }
@@ -436,6 +435,7 @@ function EmptyInspector({ preparedCount, hasTested, onStart }: { preparedCount: 
 
 function RepairInspector({ bug, selectedFix, onChoose, onClose, report, hardMode }: { bug: Bug; selectedFix?: string; onChoose: (fix: FixOption) => void; onClose: () => void; report: TestReport | null; hardMode: boolean }) {
   const selected = bug.fixes.find((fix) => fix.id === selectedFix);
+  const observation = pentestObservations[bug.deviceId];
   const fixed = Boolean(selected?.correct) && (!hardMode || Boolean(report));
   const statusAfterTest = report?.unresolved.includes(bug.id) ? "open" : report ? "passed" : null;
   return (
@@ -444,6 +444,7 @@ function RepairInspector({ bug, selectedFix, onChoose, onClose, report, hardMode
       <div className="bug-title-row"><div className={`bug-severity ${bug.severity}`}><AlertTriangle /></div><div><span className={`severity-text ${bug.severity}`}>{severityLabel(bug.severity)} control gap</span><h2 id="repair-heading">{bug.title}</h2><p>{bug.summary}</p></div></div>
       <div className="evidence-card"><span className="card-label">OBSERVED EVIDENCE</span><code>{bug.evidence}</code></div>
       <div className="risk-card"><span className="card-label">WHY IT MATTERS</span><p>{bug.risk}</p></div>
+      {observation && <div className="test-observation"><div className="test-observation-head"><span className="card-label">PENTEST OBSERVATION</span><span>CONFIRMED</span></div><p>{observation}</p></div>}
       <AttackPath bug={bug} selectedFix={selectedFix} report={report} />
       <div className="options-heading"><div><span className="section-eyebrow">CHOOSE A CONTROL</span><h3>Three possible interventions</h3></div><span>1 effective</span></div>
       <div className="fix-list">

@@ -1419,6 +1419,39 @@ button {
   flex: 0 0 auto;
 }
 
+.test-observation {
+  padding: 11px 12px;
+  border: 1px solid #cddfe8;
+  border-radius: 9px;
+  background: #f6fafc;
+}
+
+.test-observation-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.test-observation-head .card-label {
+  margin-bottom: 0;
+  color: #597e91;
+}
+
+.test-observation-head > span:last-child {
+  color: #6f93a3;
+  font: 700 8px var(--font-mono);
+  letter-spacing: .05em;
+  white-space: nowrap;
+}
+
+.test-observation p {
+  margin: 7px 0 0;
+  color: #526f7c;
+  font-size: 10px;
+  line-height: 1.4;
+}
+
 .attack-path {
   padding: 11px;
   border: 1px solid #d8e7df;
@@ -1735,6 +1768,38 @@ button {
   padding-left: 14px;
   color: var(--teal);
   white-space: nowrap;
+}
+
+.report-open-summary {
+  margin-top: 15px;
+  padding: 11px 12px;
+  border: 1px solid #efd6be;
+  border-radius: 9px;
+  background: #fff8f1;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.report-open-summary > svg {
+  margin-top: 1px;
+  color: var(--orange);
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+}
+
+.report-open-summary strong {
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.report-open-summary p {
+  margin: 4px 0 0;
+  color: #778986;
+  font-size: 10px;
+  line-height: 1.4;
 }
 
 .report-findings {
