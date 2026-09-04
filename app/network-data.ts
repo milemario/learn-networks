@@ -16,6 +16,7 @@ export type Bug = {
   id: string;
   deviceId: string;
   severity: "critical" | "high" | "medium";
+  category?: "security" | "availability";
   title: string;
   summary: string;
   evidence: string;
@@ -34,6 +35,23 @@ export type NetworkNode = {
   ip: string;
   icon: "globe" | "shield" | "server" | "switch" | "database" | "computer" | "laptop" | "wifi" | "terminal";
   position: { x: number; y: number };
+};
+
+export type SettingKind = "port" | "select" | "toggle" | "hardware";
+
+export type NodeSetting = {
+  id: string;
+  label: string;
+  description: string;
+  kind: SettingKind;
+  value: string;
+  safeValue: string;
+  options?: string[];
+};
+
+export type SettingRequirement = {
+  settingId: string;
+  value: string;
 };
 
 export const tcpIpLayers = [
@@ -247,4 +265,117 @@ export const bugs: Bug[] = [
       { id: "hard-pc-monitor", kind: "physical", label: "Replace the monitor", detail: "Change the display while leaving the stale endpoint software untouched.", correct: false },
     ],
   },
+  {
+    id: "uplink-cable",
+    deviceId: "core-sw",
+    severity: "medium",
+    category: "availability",
+    title: "Legacy uplink cable drops frames",
+    summary: "The EDGE-FW to CORE-SW uplink is an out-of-spec copper run with rising CRC errors and link flaps.",
+    evidence: "EDGE-FW ↔ CORE-SW · Cat5e 100 m run · CRC errors 4.8%",
+    risk: "Intermittent packet loss can make the portal unavailable even when security policy is correct.",
+    reportFinding: "CRC errors and link flaps make the core uplink intermittently unavailable.",
+    reportHint: "Replace the out-of-spec run with a shielded Cat6A cable and retest link health.",
+    fixes: [
+      { id: "uplink-cable-replace", kind: "physical", label: "Replace the uplink with shielded Cat6A", detail: "Use a tested, in-spec cable and certify the run after installation.", correct: true },
+      { id: "uplink-reboot", kind: "configuration", label: "Reboot the switch every hour", detail: "A restart clears symptoms temporarily but does not remove the physical fault.", correct: false },
+      { id: "uplink-label", kind: "physical", label: "Add a warning label to the cable", detail: "Documentation does not restore link integrity or availability.", correct: false },
+    ],
+    hardFixes: [
+      { id: "hard-uplink-cable-replace", kind: "physical", label: "Replace and certify the uplink cable", detail: "Install shielded Cat6A, validate termination, and record a clean cable test.", correct: true },
+      { id: "hard-uplink-failover", kind: "configuration", label: "Move traffic to a tested redundant link", detail: "Use a healthy redundant path while the faulty run is removed and certified.", correct: true },
+      { id: "hard-uplink-reboot", kind: "configuration", label: "Schedule switch reboots", detail: "A restart cannot correct a damaged or out-of-spec physical link.", correct: false },
+    ],
+  },
 ];
+
+/**
+ * The settings visible in the node modal. Values are deliberately plain text
+ * so the learner can reason about them before the pentest reveals which ones
+ * are exploitable. The simulation stores changes separately from this
+ * baseline, making a reset or a future settings editor straightforward.
+ */
+export const nodeSettings: Record<string, NodeSetting[]> = {
+  "pentest-box": [
+    { id: "pentest-box.scope", label: "Scope profile", description: "Authorised engagement target", kind: "select", value: "northstar-01", safeValue: "northstar-01", options: ["northstar-01"] },
+    { id: "pentest-box.source", label: "Source address", description: "Controlled test origin", kind: "select", value: "198.51.100.44", safeValue: "198.51.100.44", options: ["198.51.100.44"] },
+    { id: "pentest-box.logging", label: "Evidence logging", description: "Record every non-destructive probe", kind: "toggle", value: "ON", safeValue: "ON", options: ["ON", "OFF"] },
+  ],
+  internet: [
+    { id: "internet.route", label: "Public route", description: "Source network for the scenario", kind: "select", value: "0.0.0.0/0", safeValue: "0.0.0.0/0", options: ["0.0.0.0/0"] },
+    { id: "internet.protocols", label: "Visible protocols", description: "Protocols a remote tester can request", kind: "select", value: "DNS · HTTP · HTTPS", safeValue: "DNS · HTTP · HTTPS", options: ["DNS · HTTP · HTTPS"] },
+  ],
+  "edge-fw": [
+    { id: "edge-fw.port-22", label: "TCP/22 · SSH administration", description: "Perimeter listener state", kind: "port", value: "OPEN", safeValue: "CLOSED", options: ["OPEN", "CLOSED"] },
+    { id: "edge-fw.ssh-source", label: "SSH source policy", description: "Allowed source range for TCP/22", kind: "select", value: "ANY / Internet", safeValue: "Admin VPN only", options: ["ANY / Internet", "Admin VPN only", "Jump host only"] },
+    { id: "edge-fw.port-80", label: "TCP/80 · HTTP", description: "Published web listener", kind: "port", value: "OPEN", safeValue: "OPEN", options: ["OPEN", "CLOSED"] },
+    { id: "edge-fw.port-443", label: "TCP/443 · HTTPS", description: "Encrypted web listener", kind: "port", value: "OPEN", safeValue: "OPEN", options: ["OPEN", "CLOSED"] },
+  ],
+  "web-01": [
+    { id: "web-01.http-redirect", label: "HTTP → HTTPS redirect", description: "Redirect plain HTTP before authentication", kind: "toggle", value: "OFF", safeValue: "ON", options: ["ON", "OFF"] },
+    { id: "web-01.https-listener", label: "HTTPS listener", description: "TLS endpoint on the portal", kind: "toggle", value: "OFF", safeValue: "ON", options: ["ON", "OFF"] },
+    { id: "web-01.zone", label: "Network zone", description: "Published service segment", kind: "select", value: "DMZ", safeValue: "DMZ", options: ["DMZ"] },
+  ],
+  "core-sw": [
+    { id: "core-sw.unused-ports", label: "Unused wall ports", description: "Gi0/18–24 administrative state", kind: "port", value: "ACTIVE", safeValue: "SHUTDOWN", options: ["ACTIVE", "SHUTDOWN"] },
+    { id: "core-sw.port-security", label: "Access-port admission", description: "Identity and MAC limit policy", kind: "select", value: "NONE", safeValue: "802.1X + MAC limit", options: ["NONE", "802.1X + MAC limit"] },
+    { id: "core-sw.uplink-cable", label: "EDGE-FW uplink cable", description: "Physical medium and certification state", kind: "hardware", value: "Cat5e · uncertified", safeValue: "Cat6A shielded · certified", options: ["Cat5e · uncertified", "Cat6A shielded · certified"] },
+  ],
+  "db-01": [
+    { id: "db-01.db-source", label: "Database source allow-list", description: "Hosts permitted to reach TCP/3306", kind: "select", value: "DMZ subnet /24", safeValue: "WEB-01 only", options: ["DMZ subnet /24", "WEB-01 only"] },
+    { id: "db-01.port-3306", label: "TCP/3306 · database", description: "Application database listener", kind: "port", value: "OPEN", safeValue: "OPEN", options: ["OPEN", "CLOSED"] },
+    { id: "db-01.zone", label: "Network zone", description: "Finance data segment", kind: "select", value: "Server VLAN", safeValue: "Server VLAN", options: ["Server VLAN"] },
+  ],
+  "fs-01": [
+    { id: "fs-01.smbv1", label: "SMBv1 protocol", description: "Legacy file-sharing dialect", kind: "toggle", value: "ENABLED", safeValue: "DISABLED", options: ["ENABLED", "DISABLED"] },
+    { id: "fs-01.anonymous", label: "Anonymous share access", description: "Guest access to \\FS-01\\public", kind: "toggle", value: "ENABLED", safeValue: "DISABLED", options: ["ENABLED", "DISABLED"] },
+    { id: "fs-01.port-445", label: "TCP/445 · SMB", description: "Authenticated file service listener", kind: "port", value: "OPEN", safeValue: "OPEN", options: ["OPEN", "CLOSED"] },
+  ],
+  "pc-07": [
+    { id: "pc-07.patch-state", label: "Patch baseline", description: "Endpoint security update state", kind: "select", value: "141 days stale", safeValue: "COMPLIANT", options: ["141 days stale", "COMPLIANT"] },
+    { id: "pc-07.remediation-network", label: "Remediation containment", description: "Network used while updates catch up", kind: "select", value: "Employee VLAN", safeValue: "Isolated remediation VLAN", options: ["Employee VLAN", "Isolated remediation VLAN"] },
+    { id: "pc-07.edr", label: "Endpoint detection", description: "Local telemetry agent", kind: "toggle", value: "ON", safeValue: "ON", options: ["ON", "OFF"] },
+  ],
+  "admin-01": [
+    { id: "admin-01.rdp-source", label: "RDP source policy", description: "Allowed source for TCP/3389", kind: "select", value: "User VLAN", safeValue: "Admin VPN jump host", options: ["User VLAN", "Admin VPN jump host"] },
+    { id: "admin-01.nla", label: "Network Level Authentication", description: "Pre-authentication requirement", kind: "toggle", value: "OFF", safeValue: "ON", options: ["ON", "OFF"] },
+    { id: "admin-01.port-3389", label: "TCP/3389 · RDP", description: "Privileged remote desktop listener", kind: "port", value: "OPEN", safeValue: "OPEN", options: ["OPEN", "CLOSED"] },
+  ],
+  "ap-01": [
+    { id: "ap-01.guest-segment", label: "GuestNet segment", description: "VLAN and route policy for visitors", kind: "select", value: "Employee VLAN 20", safeValue: "VLAN 40 · Internet-only", options: ["Employee VLAN 20", "VLAN 40 · Internet-only"] },
+    { id: "ap-01.client-isolation", label: "Client isolation", description: "Peer-to-peer wireless traffic", kind: "toggle", value: "ON", safeValue: "ON", options: ["ON", "OFF"] },
+    { id: "ap-01.corp-ssid", label: "CorpNet segment", description: "Employee wireless network", kind: "select", value: "Employee VLAN 20", safeValue: "Employee VLAN 20", options: ["Employee VLAN 20"] },
+  ],
+};
+
+/** One or more setting paths can close a finding; each path requires all of its values. */
+export const remediationPaths: Record<string, SettingRequirement[][]> = {
+  "fw-ssh": [
+    [{ settingId: "edge-fw.port-22", value: "CLOSED" }],
+    [{ settingId: "edge-fw.ssh-source", value: "Admin VPN only" }],
+    [{ settingId: "edge-fw.ssh-source", value: "Jump host only" }],
+  ],
+  "web-tls": [[
+    { settingId: "web-01.http-redirect", value: "ON" },
+    { settingId: "web-01.https-listener", value: "ON" },
+  ]],
+  "db-acl": [[{ settingId: "db-01.db-source", value: "WEB-01 only" }]],
+  "wifi-guest": [[{ settingId: "ap-01.guest-segment", value: "VLAN 40 · Internet-only" }]],
+  "switch-ports": [
+    [{ settingId: "core-sw.unused-ports", value: "SHUTDOWN" }],
+    [{ settingId: "core-sw.port-security", value: "802.1X + MAC limit" }],
+  ],
+  "fileshare": [[
+    { settingId: "fs-01.smbv1", value: "DISABLED" },
+    { settingId: "fs-01.anonymous", value: "DISABLED" },
+  ]],
+  "admin-rdp": [[
+    { settingId: "admin-01.rdp-source", value: "Admin VPN jump host" },
+    { settingId: "admin-01.nla", value: "ON" },
+  ]],
+  "pc-patch": [
+    [{ settingId: "pc-07.patch-state", value: "COMPLIANT" }],
+    [{ settingId: "pc-07.remediation-network", value: "Isolated remediation VLAN" }],
+  ],
+  "uplink-cable": [[{ settingId: "core-sw.uplink-cable", value: "Cat6A shielded · certified" }]],
+};
