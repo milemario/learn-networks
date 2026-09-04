@@ -319,6 +319,7 @@ export const nodeSettings: Record<string, NodeSetting[]> = {
   "core-sw": [
     { id: "core-sw.unused-ports", label: "Unused wall ports", description: "Gi0/18–24 administrative state", kind: "port", value: "ACTIVE", safeValue: "SHUTDOWN", options: ["ACTIVE", "SHUTDOWN"] },
     { id: "core-sw.port-security", label: "Access-port admission", description: "Identity and MAC limit policy", kind: "select", value: "NONE", safeValue: "802.1X + MAC limit", options: ["NONE", "802.1X + MAC limit"] },
+    { id: "core-sw.uplink-path", label: "Uplink path", description: "Primary or tested redundant transport", kind: "select", value: "Primary link", safeValue: "Tested redundant link", options: ["Primary link", "Tested redundant link"] },
     { id: "core-sw.uplink-cable", label: "EDGE-FW uplink cable", description: "Physical medium and certification state", kind: "hardware", value: "Cat5e · uncertified", safeValue: "Cat6A shielded · certified", options: ["Cat5e · uncertified", "Cat6A shielded · certified"] },
   ],
   "db-01": [
@@ -377,5 +378,8 @@ export const remediationPaths: Record<string, SettingRequirement[][]> = {
     [{ settingId: "pc-07.patch-state", value: "COMPLIANT" }],
     [{ settingId: "pc-07.remediation-network", value: "Isolated remediation VLAN" }],
   ],
-  "uplink-cable": [[{ settingId: "core-sw.uplink-cable", value: "Cat6A shielded · certified" }]],
+  "uplink-cable": [
+    [{ settingId: "core-sw.uplink-cable", value: "Cat6A shielded · certified" }],
+    [{ settingId: "core-sw.uplink-path", value: "Tested redundant link" }],
+  ],
 };

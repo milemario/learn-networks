@@ -872,6 +872,22 @@ function SettingControl({
   const options = setting.options ?? [setting.value, setting.safeValue];
   const uniqueOptions = [...new Set(options)];
 
+  if (setting.kind === "hardware") {
+    return (
+      <div className={["setting-control", "hardware-setting", relevant && revealed ? "is-relevant" : "", changed ? "is-changed" : ""].filter(Boolean).join(" ")}>
+        <div className="setting-control-copy">
+          <div><strong>{setting.label}</strong>{changed && <span className="setting-changed">CHANGED</span>}</div>
+          <small>{setting.description}</small>
+          {showBaseline && <em>{matchesBaseline ? "Matches expected baseline." : "Expected baseline: " + setting.safeValue}</em>}
+        </div>
+        <div className="hardware-setting-actions">
+          <span>{value}</span>
+          <button type="button" onClick={() => onChange(setting.id, matchesBaseline ? setting.value : setting.safeValue)}>{matchesBaseline ? "RESTORE" : "REPLACE"}</button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={["setting-control", relevant && revealed ? "is-relevant" : "", changed ? "is-changed" : ""].filter(Boolean).join(" ")}>
       <div className="setting-control-copy">

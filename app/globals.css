@@ -3320,6 +3320,41 @@ button {
   outline-offset: 1px;
 }
 
+.hardware-setting-actions {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+}
+
+.hardware-setting-actions > span {
+  overflow: hidden;
+  padding: 6px 7px;
+  border: 1px solid #d2e1d9;
+  border-radius: 5px;
+  background: #f8fbf9;
+  color: #4b6b61;
+  font: 800 8px var(--font-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hardware-setting-actions > button {
+  min-height: 28px;
+  padding: 4px 6px;
+  border: 1px solid #c98d61;
+  border-radius: 5px;
+  background: #fff7ef;
+  color: #98552b;
+  cursor: pointer;
+  font: 800 7px var(--font-mono);
+}
+
+.hardware-setting-actions > button:hover {
+  background: #ffe9d9;
+}
+
 /* A small Win98/2000-inspired control surface for port and hardware changes. */
 .retro-window {
   border: 2px solid;
