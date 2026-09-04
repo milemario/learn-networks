@@ -3594,3 +3594,417 @@ button {
     grid-template-columns: 47px minmax(0, 1fr) auto;
   }
 }
+
+/* Node inspector readability pass ----------------------------------------
+   Keep this override block isolated so the modal sizing/type scale can be
+   rolled back without touching the map or pentest console styling. */
+.node-modal-backdrop {
+  padding: 22px;
+}
+
+.node-modal {
+  width: min(820px, calc(100vw - 44px));
+  max-height: min(840px, calc(100vh - 44px));
+  border-radius: 16px;
+}
+
+.node-modal-topline {
+  min-height: 52px;
+  padding: 14px 20px 8px;
+}
+
+.node-modal-topline > button {
+  width: 34px;
+  height: 34px;
+  padding: 7px;
+  border-radius: 9px;
+}
+
+.node-modal-topline > button svg {
+  width: 18px;
+  height: 18px;
+}
+
+.node-modal-title {
+  padding: 10px 20px 18px;
+  grid-template-columns: 58px minmax(0, 1fr) auto;
+  gap: 15px;
+}
+
+.node-modal-title .node-info-icon {
+  width: 54px;
+  height: 54px;
+  border-radius: 12px;
+}
+
+.node-modal-title .node-info-icon svg {
+  width: 32px;
+  height: 32px;
+}
+
+.node-modal-title h2 {
+  margin: 4px 0 4px;
+  font-size: 28px;
+}
+
+.node-modal-title p {
+  font-size: 14px;
+  line-height: 1.3;
+}
+
+.node-modal-ip {
+  font-size: 10px;
+}
+
+.node-modal-tabs {
+  padding: 0 20px;
+  gap: 6px;
+}
+
+.node-modal-tabs button {
+  min-height: 50px;
+  padding: 0 12px;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.node-modal-tabs button svg {
+  width: 18px;
+  height: 18px;
+}
+
+.node-modal-tabs button span {
+  min-width: 21px;
+  height: 21px;
+  padding: 3px 5px;
+  font-size: 10px;
+}
+
+.node-modal-body {
+  padding: 20px;
+}
+
+.node-modal-footer {
+  padding: 14px 20px;
+  gap: 10px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.node-modal-footer svg {
+  width: 17px;
+  height: 17px;
+}
+
+.node-modal .node-overview {
+  gap: 14px;
+}
+
+.node-modal .node-context-card {
+  padding: 16px;
+}
+
+.node-modal .node-context-card p {
+  margin-top: 6px;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.node-modal .node-overview-grid {
+  gap: 10px;
+}
+
+.node-modal .node-overview-grid > div {
+  padding: 12px;
+}
+
+.node-modal .node-overview-grid strong {
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.node-modal .node-overview-grid small {
+  margin-top: 4px;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.node-modal .node-pending-card,
+.node-modal .node-clean-card {
+  padding: 14px;
+  gap: 11px;
+}
+
+.node-modal .node-pending-card svg,
+.node-modal .node-clean-card svg {
+  width: 20px;
+  height: 20px;
+}
+
+.node-modal .node-pending-card strong,
+.node-modal .node-clean-card strong {
+  font-size: 13px;
+}
+
+.node-modal .node-pending-card p,
+.node-modal .node-clean-card p {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.node-modal .node-findings-block {
+  gap: 8px;
+}
+
+.node-modal .node-finding-card {
+  padding: 12px;
+  grid-template-columns: 9px minmax(0, 1fr) 28px;
+  gap: 10px;
+}
+
+.node-modal .node-finding-card strong {
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.node-modal .node-finding-card small {
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.node-modal .node-finding-card button {
+  width: 28px;
+  height: 28px;
+  padding: 4px;
+  border-radius: 7px;
+}
+
+.node-modal .node-finding-card button svg {
+  width: 15px;
+  height: 15px;
+}
+
+.node-modal .node-settings-cta {
+  padding: 12px;
+  grid-template-columns: 20px minmax(0, 1fr) 18px;
+  gap: 10px;
+}
+
+.node-modal .node-settings-cta > svg {
+  width: 18px;
+  height: 18px;
+}
+
+.node-modal .node-settings-cta strong {
+  font-size: 13px;
+}
+
+.node-modal .node-settings-cta small {
+  font-size: 11px;
+}
+
+.node-modal .node-settings-cta > svg:last-child {
+  width: 17px;
+  height: 17px;
+}
+
+.node-modal .node-settings-panel {
+  gap: 14px;
+}
+
+.node-modal .settings-intro h3 {
+  font-size: 19px;
+}
+
+.node-modal .settings-help {
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.node-modal .settings-dirty {
+  padding: 11px 12px;
+  gap: 9px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.node-modal .settings-dirty svg {
+  width: 18px;
+  height: 18px;
+}
+
+.node-modal .setting-control {
+  padding: 13px;
+  grid-template-columns: minmax(0, 1fr) minmax(190px, 42%);
+  gap: 14px;
+  border-radius: 10px;
+}
+
+.node-modal .setting-control-copy strong {
+  font-size: 13px;
+}
+
+.node-modal .setting-control-copy small {
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.node-modal .setting-control-copy em,
+.node-modal .retro-port-copy em {
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.node-modal .setting-input select {
+  min-height: 38px;
+  padding: 7px 10px;
+  font-size: 11px;
+}
+
+.node-modal .hardware-setting-actions {
+  gap: 8px;
+}
+
+.node-modal .hardware-setting-actions > span {
+  padding: 8px 9px;
+  font-size: 10px;
+}
+
+.node-modal .hardware-setting-actions > button {
+  min-height: 36px;
+  padding: 6px 8px;
+  font-size: 9px;
+}
+
+.node-modal .retro-titlebar {
+  min-height: 28px;
+  padding: 4px 6px 4px 8px;
+  font-size: 10px;
+}
+
+.node-modal .retro-titlebar i {
+  width: 17px;
+  height: 16px;
+  font-size: 11px;
+}
+
+.node-modal .retro-menubar {
+  min-height: 24px;
+  padding: 4px 8px;
+  font-size: 9px;
+}
+
+.node-modal .retro-window-body {
+  padding: 9px;
+}
+
+.node-modal .retro-toolbar {
+  padding: 6px 7px;
+  font-size: 9px;
+}
+
+.node-modal .retro-toolbar-status {
+  font-size: 8px;
+}
+
+.node-modal .retro-port-row {
+  padding: 8px 7px;
+  grid-template-columns: 58px minmax(0, 1fr) auto;
+  gap: 9px;
+}
+
+.node-modal .retro-port-state strong {
+  font-size: 9px;
+}
+
+.node-modal .retro-port-copy strong {
+  font-size: 10px;
+}
+
+.node-modal .retro-port-copy small {
+  font-size: 9px;
+  line-height: 1.35;
+}
+
+.node-modal .retro-button {
+  min-width: 52px;
+  padding: 6px 7px;
+  font-size: 9px;
+}
+
+.node-modal .retro-statusbar {
+  padding: 4px 6px;
+  font-size: 8px;
+}
+
+@media (max-width: 720px) {
+  .node-modal-backdrop {
+    padding: 8px;
+  }
+
+  .node-modal {
+    width: 100%;
+    max-height: calc(100vh - 16px);
+    border-radius: 12px;
+  }
+
+  .node-modal-topline {
+    min-height: 46px;
+    padding: 10px 16px 6px;
+  }
+
+  .node-modal-title {
+    padding: 8px 16px 14px;
+    grid-template-columns: 52px minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .node-modal-title .node-info-icon {
+    width: 48px;
+    height: 48px;
+  }
+
+  .node-modal-title .node-info-icon svg {
+    width: 28px;
+    height: 28px;
+  }
+
+  .node-modal-title h2 {
+    font-size: 24px;
+  }
+
+  .node-modal-title p {
+    font-size: 13px;
+  }
+
+  .node-modal-ip {
+    grid-column: 1 / -1;
+  }
+
+  .node-modal-tabs {
+    padding: 0 16px;
+  }
+
+  .node-modal-body {
+    padding: 16px;
+  }
+
+  .node-modal-footer {
+    padding: 12px 16px;
+    font-size: 11px;
+  }
+
+  .node-modal .node-overview-grid,
+  .node-modal .finding-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .node-modal .setting-control {
+    grid-template-columns: 1fr;
+  }
+
+  .node-modal .retro-port-row {
+    grid-template-columns: 52px minmax(0, 1fr) auto;
+  }
+}
