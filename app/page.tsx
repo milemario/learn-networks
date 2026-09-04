@@ -432,7 +432,6 @@ export default function Home() {
             onRun={testSystem}
             onSelectStage={selectStage}
             onSelectFinding={openFinding}
-            onLocateNode={(nodeId) => openNode(nodeId, "settings")}
           />
         </aside>
       </div>
@@ -468,7 +467,6 @@ function PentestConsole({
   onRun,
   onSelectStage,
   onSelectFinding,
-  onLocateNode,
 }: {
   testing: boolean;
   scanStep: number;
@@ -479,7 +477,6 @@ function PentestConsole({
   onRun: () => void;
   onSelectStage: (index: number) => void;
   onSelectFinding: (bugId: string) => void;
-  onLocateNode: (nodeId: string) => void;
 }) {
   const selectedStage = selectedStageIndex === null ? null : pentestStages[selectedStageIndex] ?? null;
   const selectedBug = selectedFindingId ? bugs.find((bug) => bug.id === selectedFindingId) ?? null : null;
@@ -539,7 +536,6 @@ function PentestConsole({
           selectedBug={selectedBug}
           selectedStageFindings={selectedStageFindings}
           onSelectFinding={onSelectFinding}
-          onLocateNode={onLocateNode}
         />
       )}
 
@@ -608,14 +604,12 @@ function StageEvidence({
   selectedBug,
   selectedStageFindings,
   onSelectFinding,
-  onLocateNode,
 }: {
   stage: PentestStage;
   report: TestReport;
   selectedBug: Bug | null;
   selectedStageFindings: Bug[];
   onSelectFinding: (bugId: string) => void;
-  onLocateNode: (nodeId: string) => void;
 }) {
   const bugBelongsToStage = selectedBug ? stage.affected.includes(selectedBug.id) : false;
   const detailBug = selectedBug && bugBelongsToStage && report.unresolved.includes(selectedBug.id) ? selectedBug : null;
@@ -647,7 +641,7 @@ function StageEvidence({
                 <div><span className="card-label">FOUND</span><strong>{detailBug.evidence}</strong><small>{detailBug.summary}</small></div>
               </div>
               <div className="finding-risk"><span className="card-label">WHY IT MATTERS</span><p>{detailBug.risk}</p></div>
-              <div className="finding-detail-actions"><span>{detailBug.reportHint}</span><button type="button" onClick={() => onLocateNode(asset.id)}><Settings2 /> Open {asset.name} settings</button></div>
+              <div className="finding-detail-actions"><span><strong>Affected asset: {asset.name}.</strong> Find it on the architecture map, open the node, then use its Settings tab.</span><em>{detailBug.reportHint}</em></div>
             </div>
           ) : null}
         </>

@@ -2746,6 +2746,17 @@ button {
   line-height: 1.35;
 }
 
+.finding-detail-actions > span strong {
+  color: #714c35;
+}
+
+.finding-detail-actions > em {
+  color: #956d4f;
+  font-size: 8px;
+  font-style: normal;
+  line-height: 1.35;
+}
+
 .finding-detail-actions button {
   flex: 0 0 auto;
   padding: 5px 6px;
